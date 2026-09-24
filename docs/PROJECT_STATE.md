@@ -9,103 +9,136 @@ Build an **Automation Architect** layer on top of the Activepieces Community Edi
 - Fork: `SanamRai001/activepieces`
 - Upstream: `activepieces/activepieces`
 - Default branch: `main`
-- Working branch: `feat/automation-architect-foundation`
+- Foundation branch: `feat/automation-architect-foundation`
+- Working branch: `feat/automation-ir`
 - Fork baseline inspected: `17e2ac0b01797f8472e781122a396c5d07acc974`
+- Foundation PR: #1
+- Phase 2 PR: #2
 
 ## Completed phase
 
-**Phase 1 — Runtime Integration Map**
+**Phase 2 — Automation IR**
 
 ### Changes
 
-- Completed Phase 0 foundation inspection and product-boundary documentation.
-- Added `docs/AUTOMATION_ARCHITECT_INTEGRATION_MAP.md`.
-- Traced Activepieces' typed flow model in `@activepieces/core-execution`.
-- Confirmed `FlowOperationRequest` is the canonical mutation contract used by the web/API/server stack.
-- Traced flow creation and update through:
-  - `flowService.create/update`;
-  - `flowVersionService.applyOperation`;
-  - `flowVersionValidationUtil.prepareRequest`;
-  - `flowOperations.apply`.
-- Confirmed generated flows can remain normal Activepieces drafts and inherit existing versioning/validation.
-- Identified capability discovery surfaces:
-  - `toolSearchService.searchActions/searchTriggers`;
-  - `pieceMetadataService`;
-  - connection metadata;
-  - MCP piece-property/schema resolution as a reference implementation.
-- Audited existing AI-facing flow-builder tools including:
-  - `ap_build_flow`;
-  - `ap_create_flow`;
-  - `ap_update_trigger`;
-  - `ap_add_step`;
-  - `ap_add_branch`;
-  - `ap_validate_step_config`;
-  - `ap_validate_flow`;
-  - `ap_test_flow`.
-- Confirmed Activepieces can already build many flows through MCP, so Automation Architect must differentiate through explicit process understanding, provider-neutral IR, safety/policy analysis, explainability and supervised lifecycle—not merely LLM tool calling.
-- Chosen compiler direction: compile Automation IR into typed Activepieces flow operations instead of writing raw FlowVersion/database records or parsing MCP text.
-- Identified two reusable behaviors currently living under MCP paths that should be extracted rather than duplicated later:
-  - structural flow validation;
-  - flow-test orchestration.
+- Added a new provider-neutral core workspace package:
+  - `packages/core/automation-architect/`
+  - package name: `@activepieces/automation-architect`.
+- Added strict Zod contracts for Automation IR V1.
+- Added trigger types:
+  - `MANUAL`;
+  - `SCHEDULE`;
+  - `EVENT`.
+- Added step types:
+  - `ACTION`;
+  - `CONDITION`;
+  - `AI_DECISION`;
+  - `APPROVAL_GATE`;
+  - `NOTIFICATION`.
+- Added recursive automation values with explicit references to:
+  - trigger output;
+  - step output.
+- Added provider-neutral capability identifiers and structured action/notification input.
+- Added deterministic condition operators and unary/binary operand validation.
+- Added AI decision routes with case-insensitive duplicate-key protection.
+- Added risk metadata with these initial classes:
+  - `READ_ONLY`;
+  - `REVERSIBLE_WRITE`;
+  - `EXTERNAL_COMMUNICATION`;
+  - `SENSITIVE_MUTATION`;
+  - `DESTRUCTIVE`;
+  - `FINANCIAL`.
+- Added separate authorization-policy contracts:
+  - `ALLOW`;
+  - `REQUIRE_APPROVAL`;
+  - `DENY`.
+- Policy rejects contradictory rules where the same risk class is both denied and approval-gated.
+- Added V1 graph validation for:
+  - duplicate step IDs;
+  - missing control-flow targets;
+  - unreachable steps;
+  - control-flow cycles;
+  - malformed reference-shaped objects;
+  - references to unknown steps;
+  - step self-references;
+  - runtime-output references inside trigger configuration.
+- Added `packages/core/automation-architect/README.md` documenting the IR contract and explicit version/migration rules.
+- Updated `bun.lock` with the new workspace package; the generated change is 14 added lockfile lines.
+- No Activepieces runtime/server/piece/web implementation was modified.
 
 ## Verification
 
-- Integration map was derived from current fork source, not documentation assumptions.
-- Flow model and operation schemas were inspected from `packages/core/execution`.
-- Server mutation path was verified through the flow and flow-version services.
-- Piece/tool discovery paths were verified from the current server implementation.
-- MCP builder, validation and test-tool implementations were inspected directly.
-- No runtime/source behavior changed in Phase 1; only documentation was added/updated, so build/test execution is not required for this phase.
-- The integration-map document was re-read from the branch after commit and matches the intended Phase 1 scope.
-- Branch diff remains documentation-only; Phase 1 is closed.
+A temporary fork-specific GitHub Actions workflow was used because upstream `.github/workflows/ci.yml` intentionally skips its real jobs unless `github.repository == 'activepieces/activepieces'`.
+
+The temporary workflow was removed after verification.
+
+Final verification run:
+
+- Workflow: `Automation IR Verification`
+- Run ID: `35970151994`
+- Head commit verified: `08a34ecb6eb0c1afca3565c128008a8713432d55`
+- `bun install`: PASS
+- Lockfile check: PASS — `bun.lock is already current`
+- TypeScript build: PASS
+- ESLint: PASS
+- Vitest: PASS
+  - 1 test file passed
+  - 18 tests passed
+  - 0 failed
+
+A prior verification run intentionally exposed and helped fix:
+- missing `bun.lock` workspace metadata;
+- TypeScript `TS4111` under `noPropertyAccessFromIndexSignature`.
+
+Both are resolved in the verified head.
 
 ## Decisions
 
 1. **Do not rebuild Activepieces.** Treat it as the initial execution/runtime and integration layer.
 2. **Do not put Automation Architect logic in Enterprise-licensed paths.**
 3. **Keep planner logic provider-neutral.** Activepieces-specific structures belong behind a compiler/adapter.
-4. **Prefer deterministic automation over AI when normal rules are sufficient.**
-5. **Risk/approval policy is separate from the LLM planner.** The planner cannot grant itself permission for high-impact actions.
-6. **Browser/ChatGPT automation is not the MVP.** It can become an optional adapter after the core supervisor works.
-7. **Coding-project supervision is the first vertical** because its requirements are already well understood and exercise state, verification, retries, escalation and notifications.
-8. **No rebrand yet.** "Automation Architect" is a working name until the architecture is proven.
-9. **Minimize upstream merge conflicts.** Prefer additive modules, narrow integration points and minimal modifications to existing Activepieces internals.
+4. **Automation IR V1 is strict.** Unknown fields and unknown schema versions are rejected rather than silently normalized.
+5. **Automation IR V1 is acyclic.** Loops must become an explicit future IR construct rather than being encoded as accidental graph cycles.
+6. **Risk metadata is descriptive, not authorization.** A planner cannot grant itself permission.
+7. **Authorization policy remains separate from planner output.**
+8. **Trigger configuration cannot depend on runtime outputs.**
+9. **Runtime/provider validation remains mandatory later.** Passing IR validation does not prove an integration, credential or real execution is valid.
+10. **Prefer deterministic automation over AI when normal rules are sufficient.**
+11. **Browser/ChatGPT automation is not the MVP.** It can become an optional adapter after the core supervisor works.
+12. **Coding-project supervision remains the first vertical.**
+13. **No rebrand yet.** "Automation Architect" remains a working name.
+14. **Minimize upstream merge conflicts.** Prefer additive modules and narrow adapters.
 
 ## Risks
 
-- Activepieces upstream is changing quickly, including agent and AI-routing functionality.
-- The fork is large; careless cross-cutting modifications would make upstream synchronization expensive.
-- Generated workflows can create unsafe side effects if retries/idempotency/approval rules are weak.
-- LLM-produced plans can invent nonexistent capabilities unless capability discovery is authoritative.
-- Activepieces flow internals may already expose APIs/tools that make a custom compiler much smaller than currently assumed; Phase 1 must verify this before coding.
-- Enterprise-licensed directories exist in the same monorepo and must not be treated as MIT code.
+- Activepieces upstream is changing quickly, especially agents, AI routing and MCP builder tooling.
+- The planner can still hallucinate capabilities unless Phase 3 grounds it against authoritative capability discovery.
+- V1 reference validation checks identity/existence but does not yet prove that every referenced step is guaranteed to execute before the consumer on all branch paths. The compiler/runtime validator must reject impossible execution-order references; future IR validation may add dominance analysis if needed.
+- Risk classification supplied by an LLM cannot be trusted as the sole safety signal; capability metadata and deterministic policy must contribute to final authorization.
+- The IR currently models schedules as cron strings; planner UX will need a deterministic natural-language-to-schedule normalization layer.
+- Enterprise-licensed directories remain present in the monorepo and must not be treated as MIT code.
 
 ## Next phase
 
-**Phase 2 — Automation IR**
+**Phase 3 — Natural-language planner prototype**
 
-Implement the first provider-neutral, versioned TypeScript schema for automation plans.
+Goal: turn a bounded user request plus real available capabilities and policy context into **Automation IR only**. Do not execute or publish generated workflows yet.
 
-Initial supported concepts:
+Smallest useful scope:
 
-1. trigger:
-   - manual;
-   - schedule;
-   - webhook/event capability;
-2. action;
-3. deterministic condition;
-4. AI decision;
-5. approval gate;
-6. notification;
-7. references between step outputs and later inputs;
-8. explicit policy/risk metadata.
+1. define a planner input contract:
+   - user goal;
+   - available trigger/action capabilities;
+   - connection availability;
+   - policy context;
+2. define a structured planner-output contract using `AutomationIrV1Schema`;
+3. add capability grounding so the planner cannot invent tool names;
+4. add deterministic post-generation validation;
+5. return useful planner diagnostics when:
+   - capability is unavailable;
+   - authentication/connection is missing;
+   - user intent is materially ambiguous;
+   - policy requires human input;
+6. add focused unit tests with mocked model output; no live paid-model requirement for the core test suite.
 
-Constraints:
-
-- no server services or Activepieces-specific flow operations inside the IR package;
-- use Zod schemas plus inferred TypeScript types;
-- include focused unit tests;
-- keep the first schema deliberately small;
-- define versioning/migration expectations before adding compiler code.
-
-Deliverable: a standalone, tested Automation IR core package that Phase 3 can use as the planner output contract.
+Deliverable: a tested planner service/interface that can convert a small set of natural-language automation requests into valid, explainable Automation IR without touching Activepieces flow execution.
