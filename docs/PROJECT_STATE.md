@@ -56,7 +56,8 @@ Build an **Automation Architect** layer on top of the Activepieces Community Edi
 - Piece/tool discovery paths were verified from the current server implementation.
 - MCP builder, validation and test-tool implementations were inspected directly.
 - No runtime/source behavior changed in Phase 1; only documentation was added/updated, so build/test execution is not required for this phase.
-- The integration-map document must be re-read from the branch before Phase 1 is closed.
+- The integration-map document was re-read from the branch after commit and matches the intended Phase 1 scope.
+- Branch diff remains documentation-only; Phase 1 is closed.
 
 ## Decisions
 
