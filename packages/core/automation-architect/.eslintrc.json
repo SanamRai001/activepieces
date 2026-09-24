@@ -1,0 +1,27 @@
+{
+  "extends": ["../../../.eslintrc.json"],
+  "ignorePatterns": ["!**/*", "dist"],
+  "overrides": [
+    {
+      "files": ["*.ts", "*.tsx"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@activepieces/shared",
+                  "@activepieces/server*",
+                  "@activepieces/pieces*",
+                  "@activepieces/web*"
+                ],
+                "message": "automation-architect is provider-neutral core code and must not import Activepieces runtime, server, pieces, or web modules."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
