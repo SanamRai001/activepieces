@@ -118,6 +118,18 @@
         "vitest": "3.2.6",
       },
     },
+    "packages/core/automation-architect": {
+      "name": "@activepieces/automation-architect",
+      "version": "0.1.0",
+      "dependencies": {
+        "zod": "4.3.6",
+      },
+      "devDependencies": {
+        "@types/node": "24.11.0",
+        "typescript": "5.5.4",
+        "vitest": "3.2.6",
+      },
+    },
     "packages/core/execution": {
       "name": "@activepieces/core-execution",
       "version": "0.23.0",
@@ -11157,6 +11169,8 @@
     "@1password/sdk-core": ["@1password/sdk-core@0.4.0", "", {}, "sha512-vjeI1o4wiONY+t1naA4dtUp6HktdLH1D2S+tN1Lh4l41S9XIUHxrljov9B5u6G+VHr7f2MUoxmzXA9zT3aokQQ=="],
 
     "@activepieces/ai-providers": ["@activepieces/ai-providers@workspace:packages/core/ai-providers"],
+
+    "@activepieces/automation-architect": ["@activepieces/automation-architect@workspace:packages/core/automation-architect"],
 
     "@activepieces/cli": ["@activepieces/cli@workspace:packages/cli"],
 
