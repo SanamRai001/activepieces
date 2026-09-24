@@ -11,11 +11,11 @@ Build an **Automation Architect** layer on top of the Activepieces Community Edi
 - Default branch: `main`
 - Foundation branch: `feat/automation-architect-foundation`
 - Phase 2 branch: `feat/automation-ir`
-- Working branch: `feat/natural-language-planner`
+- Working branch: `feat/natural-language-planner-phase3`
 - Fork baseline inspected: `17e2ac0b01797f8472e781122a396c5d07acc974`
 - Foundation PR: #1
 - Phase 2 PR: #2
-- Phase 3 PR: #3
+- Phase 3 PR: #4 (clean replacement; #3 superseded)
 
 ## Completed phase
 
