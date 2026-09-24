@@ -504,6 +504,72 @@ describe('Activepieces IR compiler', () => {
         }))
     })
 
+    it('rejects cross-branch references that are not guaranteed to dominate the consumer', async () => {
+        const compiler = createActivepiecesIrCompiler(dependencies())
+        const result = await compiler.compile({
+            automation: {
+                schemaVersion: '1',
+                name: 'Unsafe branch reference',
+                goal: 'Do not read outputs from a sibling branch.',
+                trigger: {
+                    type: 'EVENT',
+                    capability: 'activepieces:trigger:@activepieces/piece-github:new_issue',
+                    input: { repository: 'acme/api' },
+                    next: 'condition',
+                },
+                steps: [
+                    {
+                        id: 'condition',
+                        name: 'Condition',
+                        type: 'CONDITION',
+                        expression: { left: true, operator: 'IS_TRUE' },
+                        ifTrue: 'true_step',
+                        ifFalse: 'false_step',
+                    },
+                    {
+                        id: 'true_step',
+                        name: 'True step',
+                        type: 'ACTION',
+                        capability: 'activepieces:action:@activepieces/piece-github:add_label',
+                        input: { issueId: '1', label: 'true' },
+                    },
+                    {
+                        id: 'false_step',
+                        name: 'False step',
+                        type: 'ACTION',
+                        capability: 'activepieces:action:@activepieces/piece-github:send_comment',
+                        input: {
+                            issueId: '1',
+                            body: {
+                                kind: 'REFERENCE',
+                                source: 'STEP',
+                                stepId: 'true_step',
+                                path: ['result'],
+                            },
+                        },
+                    },
+                ],
+            },
+            projectId: PROJECT_ID,
+            platformId: PLATFORM_ID,
+            connectionBindings: {
+                'activepieces:trigger:@activepieces/piece-github:new_issue': 'github-main',
+                'activepieces:action:@activepieces/piece-github:add_label': 'github-main',
+                'activepieces:action:@activepieces/piece-github:send_comment': 'github-main',
+            },
+        })
+
+        expect(result).toEqual(expect.objectContaining({
+            status: 'FAILED',
+            diagnostics: expect.arrayContaining([
+                expect.objectContaining({
+                    code: 'NON_DOMINATING_REFERENCE',
+                    stepId: 'false_step',
+                }),
+            ]),
+        }))
+    })
+
     it('rejects stale or invisible capabilities during project-scoped re-resolution', async () => {
         const compiler = createActivepiecesIrCompiler(dependencies({}))
         const result = await compiler.compile({
