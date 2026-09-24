@@ -160,7 +160,6 @@ function groundAutomation(
             diagnostics,
             connectionQuestions,
             stepId: step.id,
-            fallbackRisk: step.risk,
         })
 
         if (capability?.risk === undefined) {
@@ -198,7 +197,6 @@ type ValidateCapabilityUseParams = {
     diagnostics: PlannerDiagnostic[]
     connectionQuestions: PlannerQuestion[]
     stepId?: string
-    fallbackRisk?: AutomationStep['risk']
 }
 
 function validateCapabilityUse(
@@ -245,7 +243,7 @@ function validateCapabilityUse(
         })
     }
 
-    const effectiveRisk = capability.risk ?? params.fallbackRisk
+    const effectiveRisk = capability.risk
     if (effectiveRisk === undefined) {
         return capability
     }
