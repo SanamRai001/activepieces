@@ -33,19 +33,8 @@ jobs:
       - name: Install repository dependencies with pinned toolchain
         run: bun install --frozen-lockfile
 
-      - name: Build Automation Architect core
-        working-directory: packages/core/automation-architect
-        run: bun run build
-
-      - name: Install isolated TypeScript toolchain
-        run: |
-          mkdir -p /tmp/automation-architect-ts
-          cd /tmp/automation-architect-ts
-          npm init -y >/dev/null 2>&1
-          npm install --silent --no-audit --no-fund typescript@5.5.4 @types/node@24.11.0
-
-      - name: Build API
-        run: /tmp/automation-architect-ts/node_modules/.bin/tsc -p packages/server/api/tsconfig.app.json --typeRoots /tmp/automation-architect-ts/node_modules/@types
+      - name: Build API through workspace dependency graph
+        run: bunx turbo run build --filter=api
 
       - name: Install isolated lint tooling
         run: |
@@ -56,7 +45,11 @@ jobs:
 
       - name: Lint capability discovery files
         run: |
-          /tmp/automation-architect-lint/node_modules/.bin/eslint             'packages/server/api/src/app/automation-architect/capability-discovery.service.ts'             'packages/server/api/test/unit/automation-architect/capability-discovery.service.test.ts'             --resolve-plugins-relative-to /tmp/automation-architect-lint/node_modules
+          /tmp/automation-architect-lint/node_modules/.bin/eslint \
+            'packages/server/api/src/app/automation-architect/capability-discovery.ts' \
+            'packages/server/api/src/app/automation-architect/capability-discovery.service.ts' \
+            'packages/server/api/test/unit/automation-architect/capability-discovery.service.test.ts' \
+            --resolve-plugins-relative-to /tmp/automation-architect-lint/node_modules
 
       - name: Test capability discovery adapter
         working-directory: packages/server/api
