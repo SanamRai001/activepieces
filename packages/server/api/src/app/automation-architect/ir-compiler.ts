@@ -1,6 +1,6 @@
 import {
-    AutomationIrV1Schema,
     type AutomationIrV1,
+    AutomationIrV1Schema,
     type AutomationReference,
     type AutomationStep,
     type AutomationValue,
@@ -11,15 +11,15 @@ import {
     BranchExecutionType,
     BranchOperator,
     CreateFlowRequest as CreateFlowRequestSchema,
-    FlowActionType,
-    FlowOperationRequest as FlowOperationRequestSchema,
-    FlowOperationType,
-    FlowTriggerType,
-    RouterExecutionType,
     type CreateFlowRequest as CreateFlowRequestType,
     type FlowAction,
+    FlowActionType,
     type FlowOperationRequest,
+    FlowOperationRequest as FlowOperationRequestSchema,
+    FlowOperationType,
     type FlowTrigger,
+    FlowTriggerType,
+    RouterExecutionType,
 } from '@activepieces/shared'
 
 const SCHEDULE_PIECE_NAME = '@activepieces/piece-schedule'
@@ -454,10 +454,10 @@ class CompilerContext {
         expectedKind: ActivepiecesCapabilityId['kind']
         stepId?: string
     }): Promise<{
-        parsed: ActivepiecesCapabilityId
-        piece: CompilerPieceMetadata
-        component: CompilerComponentMetadata
-    }> {
+            parsed: ActivepiecesCapabilityId
+            piece: CompilerPieceMetadata
+            component: CompilerComponentMetadata
+        }> {
         const parsed = parseActivepiecesCapabilityId(params.capabilityId)
         if (parsed === undefined) {
             throw compilerError(
@@ -749,7 +749,7 @@ function compileReference(
         if (typeof segment === 'number') {
             return `[${segment}]`
         }
-        return `['${segment.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}']`
+        return `['${segment.replaceAll('\\', '\\\\').replaceAll('\'', '\\\'')}']`
     }).join('')
 
     return `{{${base}['output']${path}}}`
@@ -759,11 +759,11 @@ function compileBranchCondition(
     step: Extract<AutomationStep, { type: 'CONDITION' }>,
     stepNameById: Record<string, string>,
 ): {
-    firstValue: string
-    operator: BranchOperator
-    secondValue?: string
-    caseSensitive?: boolean
-} {
+        firstValue: string
+        operator: BranchOperator
+        secondValue?: string
+        caseSensitive?: boolean
+    } {
     const firstValue = conditionValue(step.expression.left, stepNameById)
     const right = step.expression.right
 
@@ -858,11 +858,11 @@ function binaryCondition(
     stepNameById: Record<string, string>,
     caseSensitive?: boolean,
 ): {
-    firstValue: string
-    operator: BranchOperator
-    secondValue: string
-    caseSensitive?: boolean
-} {
+        firstValue: string
+        operator: BranchOperator
+        secondValue: string
+        caseSensitive?: boolean
+    } {
     if (step.expression.right === undefined) {
         throw compilerError(
             'UNSUPPORTED_CONDITION',
