@@ -143,18 +143,24 @@ describe('Activepieces IR compiler', () => {
             throw new Error('Expected compiled result.')
         }
 
-        expect(result.operations).toHaveLength(1)
-        expect(result.operations[0]?.type).toBe(FlowOperationType.IMPORT_FLOW)
+        expect(result.operations).toHaveLength(2)
+        expect(result.operations.map((operation) => operation.type)).toEqual([
+            FlowOperationType.UPDATE_TRIGGER,
+            FlowOperationType.ADD_ACTION,
+        ])
+        expect(result.operations).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ type: FlowOperationType.IMPORT_FLOW }),
+        ]))
 
-        const operation = result.operations[0]
-        if (operation?.type !== FlowOperationType.IMPORT_FLOW) {
-            throw new Error('Expected IMPORT_FLOW.')
+        const triggerOperation = result.operations[0]
+        if (triggerOperation?.type !== FlowOperationType.UPDATE_TRIGGER) {
+            throw new Error('Expected UPDATE_TRIGGER.')
         }
-        expect(operation.request.trigger.type).toBe(FlowTriggerType.PIECE)
-        if (operation.request.trigger.type !== FlowTriggerType.PIECE) {
+        expect(triggerOperation.request.type).toBe(FlowTriggerType.PIECE)
+        if (triggerOperation.request.type !== FlowTriggerType.PIECE) {
             throw new Error('Expected piece trigger.')
         }
-        expect(operation.request.trigger.settings).toEqual(expect.objectContaining({
+        expect(triggerOperation.request.settings).toEqual(expect.objectContaining({
             pieceName: '@activepieces/piece-github',
             pieceVersion: '1.2.3',
             triggerName: 'new_issue',
@@ -164,13 +170,16 @@ describe('Activepieces IR compiler', () => {
             },
         }))
 
-        const action = operation.request.trigger.nextAction
-        expect(action?.type).toBe(FlowActionType.PIECE)
-        if (action?.type !== FlowActionType.PIECE) {
+        const actionOperation = result.operations[1]
+        if (actionOperation?.type !== FlowOperationType.ADD_ACTION) {
+            throw new Error('Expected ADD_ACTION.')
+        }
+        expect(actionOperation.request.action.type).toBe(FlowActionType.PIECE)
+        if (actionOperation.request.action.type !== FlowActionType.PIECE) {
             throw new Error('Expected piece action.')
         }
-        expect(action.settings.pieceVersion).toBe('1.2.3')
-        expect(action.settings.input.issueId).toBe('{{trigger[\'output\'][\'id\']}}')
+        expect(actionOperation.request.action.settings.pieceVersion).toBe('1.2.3')
+        expect(actionOperation.request.action.settings.input.issueId).toBe('{{trigger[\'output\'][\'id\']}}')
     })
 
     it('compiles cron schedules through the built-in schedule piece', async () => {
@@ -207,9 +216,9 @@ describe('Activepieces IR compiler', () => {
         expect(result.status).toBe('COMPILED')
         if (result.status !== 'COMPILED') throw new Error('Expected compiled result.')
         const operation = result.operations[0]
-        if (operation?.type !== FlowOperationType.IMPORT_FLOW) throw new Error('Expected import.')
-        if (operation.request.trigger.type !== FlowTriggerType.PIECE) throw new Error('Expected piece trigger.')
-        expect(operation.request.trigger.settings).toEqual(expect.objectContaining({
+        if (operation?.type !== FlowOperationType.UPDATE_TRIGGER) throw new Error('Expected trigger update.')
+        if (operation.request.type !== FlowTriggerType.PIECE) throw new Error('Expected piece trigger.')
+        expect(operation.request.settings).toEqual(expect.objectContaining({
             pieceName: '@activepieces/piece-schedule',
             pieceVersion: '0.1.22',
             triggerName: 'cron_expression',
@@ -283,12 +292,15 @@ describe('Activepieces IR compiler', () => {
 
         expect(result.status).toBe('COMPILED')
         if (result.status !== 'COMPILED') throw new Error('Expected compiled result.')
-        const operation = result.operations[0]
-        if (operation?.type !== FlowOperationType.IMPORT_FLOW) throw new Error('Expected import.')
-        const router = operation.request.trigger.nextAction
-        expect(router?.type).toBe(FlowActionType.ROUTER)
-        if (router?.type !== FlowActionType.ROUTER) throw new Error('Expected router.')
-        expect(router.children).toHaveLength(2)
+        const routerOperation = result.operations.find((operation) =>
+            operation.type === FlowOperationType.ADD_ACTION
+            && operation.request.action.type === FlowActionType.ROUTER
+        )
+        expect(routerOperation?.type).toBe(FlowOperationType.ADD_ACTION)
+        if (routerOperation?.type !== FlowOperationType.ADD_ACTION) throw new Error('Expected router action.')
+        const router = routerOperation.request.action
+        if (router.type !== FlowActionType.ROUTER) throw new Error('Expected router.')
+        expect(router.settings.branches).toHaveLength(2)
         expect(router.settings.branches[0]).toEqual(expect.objectContaining({
             branchType: 'CONDITION',
             branchName: 'True',
@@ -433,12 +445,13 @@ describe('Activepieces IR compiler', () => {
 
         expect(result.status).toBe('COMPILED')
         if (result.status !== 'COMPILED') throw new Error('Expected compiled result.')
-        const operation = result.operations[0]
-        if (operation?.type !== FlowOperationType.IMPORT_FLOW) throw new Error('Expected import.')
-        const label = operation.request.trigger.nextAction
-        const router = label?.nextAction
-        expect(router?.type).toBe(FlowActionType.ROUTER)
-        if (router?.type !== FlowActionType.ROUTER) throw new Error('Expected router.')
+        const routerOperation = result.operations.find((operation) =>
+            operation.type === FlowOperationType.ADD_ACTION
+            && operation.request.action.type === FlowActionType.ROUTER
+        )
+        if (routerOperation?.type !== FlowOperationType.ADD_ACTION) throw new Error('Expected router action.')
+        const router = routerOperation.request.action
+        if (router.type !== FlowActionType.ROUTER) throw new Error('Expected router.')
         const branch = router.settings.branches[0]
         if (branch?.branchType !== 'CONDITION') throw new Error('Expected condition branch.')
         expect(branch.conditions[0]?.[0]?.firstValue).toBe('{{aa_step_001[\'output\'][\'ok\']}}')
@@ -639,28 +652,22 @@ describe('Activepieces draft materializer', () => {
                     projectId: PROJECT_ID,
                 },
                 operations: [{
-                    type: FlowOperationType.IMPORT_FLOW,
+                    type: FlowOperationType.UPDATE_TRIGGER,
                     request: {
-                        displayName: 'Compiled flow',
-                        trigger: {
-                            name: 'trigger',
-                            displayName: 'Schedule',
-                            valid: true,
-                            lastUpdatedDate: NOW,
-                            type: FlowTriggerType.PIECE,
-                            settings: {
-                                pieceName: '@activepieces/piece-schedule',
-                                pieceVersion: '0.1.22',
-                                triggerName: 'cron_expression',
-                                input: {
-                                    cronExpression: '0 * * * *',
-                                    timezone: 'UTC',
-                                },
-                                propertySettings: {},
+                        name: 'trigger',
+                        displayName: 'Schedule',
+                        valid: true,
+                        type: FlowTriggerType.PIECE,
+                        settings: {
+                            pieceName: '@activepieces/piece-schedule',
+                            pieceVersion: '0.1.22',
+                            triggerName: 'cron_expression',
+                            input: {
+                                cronExpression: '0 * * * *',
+                                timezone: 'UTC',
                             },
+                            propertySettings: {},
                         },
-                        schemaVersion: null,
-                        notes: [],
                     },
                 }],
                 stepNameById: {},
@@ -696,8 +703,11 @@ describe('Activepieces draft materializer', () => {
                     publishedVersionId: null,
                     version: {
                         valid: true,
-                        trigger: operation.type === FlowOperationType.IMPORT_FLOW
-                            ? operation.request.trigger
+                        trigger: operation.type === FlowOperationType.UPDATE_TRIGGER
+                            ? {
+                                ...operation.request,
+                                lastUpdatedDate: NOW,
+                            }
                             : {
                                 name: 'trigger',
                                 displayName: 'empty',
@@ -731,7 +741,8 @@ describe('Activepieces draft materializer', () => {
             flowId: 'flow-1',
             diagnostics: [],
         })
-        expect(calls).toEqual([FlowOperationType.IMPORT_FLOW])
+        expect(calls).toEqual([FlowOperationType.UPDATE_TRIGGER])
+        expect(calls).not.toContain(FlowOperationType.IMPORT_FLOW)
         expect(calls).not.toContain(FlowOperationType.LOCK_AND_PUBLISH)
         expect(calls).not.toContain(FlowOperationType.CHANGE_STATUS)
     })
@@ -763,10 +774,10 @@ describe('Activepieces draft materializer', () => {
         expect(created).toBe(false)
     })
 
-    it('reports failed-with-artifact when import fails after flow creation', async () => {
+    it('reports failed-with-artifact when an operation fails after flow creation', async () => {
         const { service } = runtime({
             applyOperation: async () => {
-                throw new Error('import failed')
+                throw new Error('operation failed')
             },
         })
 
@@ -791,10 +802,11 @@ describe('Activepieces draft materializer', () => {
                 publishedVersionId: null,
                 version: {
                     valid: false,
-                    trigger: operation.type === FlowOperationType.IMPORT_FLOW
+                    trigger: operation.type === FlowOperationType.UPDATE_TRIGGER
                         ? {
-                            ...operation.request.trigger,
+                            ...operation.request,
                             valid: false,
+                            lastUpdatedDate: NOW,
                         }
                         : {
                             name: 'trigger',
