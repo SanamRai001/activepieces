@@ -237,7 +237,7 @@ describe('Automation IR V1', () => {
         expect(result.error?.issues.some((issue) => issue.message.includes('references unknown step'))).toBe(true)
     })
 
-    it('rejects step-output references in trigger input', () => {
+    it('rejects runtime references in trigger configuration', () => {
         const result = AutomationIrV1Schema.safeParse({
             ...basicAutomation,
             trigger: {
@@ -246,8 +246,7 @@ describe('Automation IR V1', () => {
                 input: {
                     impossible: {
                         kind: 'REFERENCE',
-                        source: 'STEP',
-                        stepId: 'send_update',
+                        source: 'TRIGGER',
                         path: ['result'],
                     },
                 },
@@ -256,7 +255,49 @@ describe('Automation IR V1', () => {
         })
 
         expect(result.success).toBe(false)
-        expect(result.error?.issues.some((issue) => issue.message.includes('Trigger input cannot reference step output'))).toBe(true)
+        expect(result.error?.issues.some((issue) => issue.message.includes('Trigger configuration cannot reference runtime outputs'))).toBe(true)
+    })
+
+    it('rejects malformed reference-shaped objects instead of treating them as plain data', () => {
+        const result = AutomationIrV1Schema.safeParse({
+            ...basicAutomation,
+            steps: [
+                {
+                    ...basicAutomation.steps[0],
+                    input: {
+                        malformed: {
+                            kind: 'REFERENCE',
+                            source: 'STEP',
+                            path: ['value'],
+                        },
+                    },
+                },
+            ],
+        })
+
+        expect(result.success).toBe(false)
+    })
+
+    it('rejects a step that references its own output', () => {
+        const result = AutomationIrV1Schema.safeParse({
+            ...basicAutomation,
+            steps: [
+                {
+                    ...basicAutomation.steps[0],
+                    input: {
+                        value: {
+                            kind: 'REFERENCE',
+                            source: 'STEP',
+                            stepId: 'send_update',
+                            path: ['result'],
+                        },
+                    },
+                },
+            ],
+        })
+
+        expect(result.success).toBe(false)
+        expect(result.error?.issues.some((issue) => issue.message.includes('cannot reference its own output'))).toBe(true)
     })
 
     it('requires a right-hand value for binary conditions', () => {
@@ -373,5 +414,14 @@ describe('Automation policy contract', () => {
         expect(policy.maxAttemptsPerStep).toBe(3)
         expect(policy.deny).toEqual([])
         expect(policy.requireApprovalFor).toContain('DESTRUCTIVE')
+    })
+
+    it('rejects contradictory deny and approval rules', () => {
+        const result = AutomationPolicySchema.safeParse({
+            requireApprovalFor: ['DESTRUCTIVE'],
+            deny: ['DESTRUCTIVE'],
+        })
+
+        expect(result.success).toBe(false)
     })
 })
