@@ -305,6 +305,30 @@ describe('Activepieces IR compiler', () => {
             branchType: 'CONDITION',
             branchName: 'True',
         }))
+        const branchOperations = result.operations.filter((operation) =>
+            operation.type === FlowOperationType.ADD_ACTION
+            && operation.request.stepLocationRelativeToParent === 'INSIDE_BRANCH'
+        )
+        expect(branchOperations).toEqual([
+            expect.objectContaining({
+                request: expect.objectContaining({
+                    parentStep: 'aa_step_001',
+                    branchIndex: 0,
+                    action: expect.objectContaining({
+                        name: 'aa_step_002',
+                    }),
+                }),
+            }),
+            expect.objectContaining({
+                request: expect.objectContaining({
+                    parentStep: 'aa_step_001',
+                    branchIndex: 1,
+                    action: expect.objectContaining({
+                        name: 'aa_step_003',
+                    }),
+                }),
+            }),
+        ])
     })
 
     it('rejects branch joins/shared downstream steps before creating an artifact', async () => {
