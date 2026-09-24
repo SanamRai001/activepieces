@@ -36,20 +36,12 @@ jobs:
       - name: Build API through workspace dependency graph
         run: bunx turbo run build --filter=api
 
-      - name: Install isolated lint tooling
-        run: |
-          mkdir -p /tmp/automation-architect-lint
-          cd /tmp/automation-architect-lint
-          npm init -y >/dev/null 2>&1
-          npm install --silent --no-audit --no-fund eslint@8.57.0 @typescript-eslint/eslint-plugin@7.18.0 @typescript-eslint/parser@7.18.0 eslint-plugin-unused-imports@4.4.1 typescript@5.5.4
-
       - name: Lint capability discovery files
         run: |
-          /tmp/automation-architect-lint/node_modules/.bin/eslint \
+          bunx eslint \
             'packages/server/api/src/app/automation-architect/capability-discovery.ts' \
             'packages/server/api/src/app/automation-architect/capability-discovery.service.ts' \
-            'packages/server/api/test/unit/automation-architect/capability-discovery.service.test.ts' \
-            --resolve-plugins-relative-to /tmp/automation-architect-lint/node_modules
+            'packages/server/api/test/unit/automation-architect/capability-discovery.service.test.ts'
 
       - name: Test capability discovery adapter
         working-directory: packages/server/api
