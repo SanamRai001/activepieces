@@ -41,16 +41,19 @@ jobs:
             exit 1
           fi
 
-      - name: Install repository lint tooling
-        run: bun add --no-save --dev eslint@8.57.0 @typescript-eslint/eslint-plugin@7.18.0 @typescript-eslint/parser@7.18.0 eslint-plugin-unused-imports@4.4.1
+      - name: Install isolated lint tooling
+        run: |
+          mkdir -p /tmp/automation-architect-lint
+          cd /tmp/automation-architect-lint
+          npm init -y >/dev/null 2>&1
+          npm install --silent --no-audit --no-fund eslint@8.57.0 @typescript-eslint/eslint-plugin@7.18.0 @typescript-eslint/parser@7.18.0 eslint-plugin-unused-imports@4.4.1
 
       - name: Build Automation Architect core
         working-directory: packages/core/automation-architect
         run: bun run build
 
       - name: Lint Automation Architect core
-        working-directory: packages/core/automation-architect
-        run: bun run lint
+        run: /tmp/automation-architect-lint/node_modules/.bin/eslint 'packages/core/automation-architect/src/**/*.ts' 'packages/core/automation-architect/test/**/*.ts' --resolve-plugins-relative-to /tmp/automation-architect-lint/node_modules
 
       - name: Test Automation Architect core
         working-directory: packages/core/automation-architect
