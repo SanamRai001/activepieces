@@ -1,6 +1,7 @@
 import { PlannerCapability } from '@activepieces/automation-architect'
 import { ActionClassification } from '@activepieces/pieces-framework'
 import { FastifyBaseLogger } from 'fastify'
+import { appConnectionService } from '../app-connection/app-connection-service/app-connection-service'
 import { pieceMetadataService } from '../pieces/metadata/piece-metadata-service'
 import {
     toolSearchService,
@@ -72,11 +73,16 @@ export type ActivepiecesCapabilityDiscoveryDependencies = {
         platformId: string
         projectId: string
     }): Promise<PieceMetadata | undefined>
+    listConnectedPieceNames(params: {
+        platformId: string
+        projectId: string
+    }): Promise<ReadonlySet<string>>
 }
 
 export const activepiecesCapabilityDiscoveryService = (log: FastifyBaseLogger) => {
     const search = toolSearchService(log)
     const metadata = pieceMetadataService(log)
+    const connections = appConnectionService(log)
 
     return createActivepiecesCapabilityDiscoveryService({
         searchActions: (query, params) => search.searchActions(query, params),
@@ -86,6 +92,14 @@ export const activepiecesCapabilityDiscoveryService = (log: FastifyBaseLogger) =
             platformId,
             projectId,
         }),
+        listConnectedPieceNames: async ({ platformId, projectId }) => {
+            const connected = await connections.listConnectedPieces({
+                platformId,
+                projectId,
+                limit: 1000,
+            })
+            return new Set(connected.map((connection) => connection.pieceName))
+        },
     })
 }
 
@@ -101,13 +115,17 @@ export const createActivepiecesCapabilityDiscoveryService = (
             limit,
         }
 
-        const [triggerResponse, actionResponse] = await Promise.all([
+        const [triggerResponse, actionResponse, connectedPieceNames] = await Promise.all([
             kinds.includes('TRIGGER')
                 ? dependencies.searchTriggers(params.query, searchParams)
                 : Promise.resolve<ToolSearchTriggerResponse | undefined>(undefined),
             kinds.includes('ACTION')
                 ? dependencies.searchActions(params.query, searchParams)
                 : Promise.resolve<ToolSearchActionResponse | undefined>(undefined),
+            dependencies.listConnectedPieceNames({
+                platformId: params.platformId,
+                projectId: params.projectId,
+            }),
         ])
 
         const issues: ActivepiecesCapabilityDiscoveryIssue[] = []
@@ -188,7 +206,7 @@ export const createActivepiecesCapabilityDiscoveryService = (
                 description: component.description || candidate.description || `${component.displayName} from ${piece.displayName}`,
                 connection: {
                     required: candidate.requiresConnection,
-                    available: !candidate.requiresConnection || candidate.connected === true,
+                    available: !candidate.requiresConnection || connectedPieceNames.has(candidate.pieceName),
                     label: piece.displayName,
                 },
                 ...(candidate.kind === 'ACTION'
