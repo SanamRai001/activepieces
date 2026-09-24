@@ -3,6 +3,15 @@ import { AutomationIrV1 } from './automation-ir'
 import { AutomationPolicySchema } from './policy'
 import { PlannerCapabilitySchema } from './planner-capability'
 
+export const AUTOMATION_PLANNER_RULES = [
+    'Use only capability ids supplied in the capability catalog, exactly as provided.',
+    'Prefer deterministic conditions over AI decisions when an exact rule can express the decision.',
+    'Ask the user only when missing information materially changes the automation or its safety.',
+    'Never invent credentials, connections, capabilities, permissions, or successful execution results.',
+    'Treat catalog risk metadata and deterministic policy as authoritative safety inputs.',
+    'Produce a plan only; never execute, publish, activate, or claim that an automation ran.',
+] as const
+
 export const AutomationPlannerInputSchema = z.object({
     goal: z.string().trim().min(1).max(8000),
     capabilities: z.array(PlannerCapabilitySchema).max(1000),
@@ -112,6 +121,7 @@ export type AutomationPlannerResult =
 
 export type PlannerModelInput = AutomationPlannerInput & {
     irSchemaVersion: '1'
+    rules: string[]
 }
 
 export interface AutomationPlannerModel {
