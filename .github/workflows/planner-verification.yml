@@ -45,7 +45,7 @@ jobs:
           mkdir -p /tmp/automation-architect-lint
           cd /tmp/automation-architect-lint
           npm init -y >/dev/null 2>&1
-          npm install --silent --no-audit --no-fund eslint@8.57.0 @typescript-eslint/eslint-plugin@7.18.0 @typescript-eslint/parser@7.18.0 eslint-plugin-unused-imports@4.4.1 typescript@5.5.4
+          npm install --silent --no-audit --no-fund eslint@8.57.0 typescript@5.5.4 @typescript-eslint/eslint-plugin@7.18.0 @typescript-eslint/parser@7.18.0 eslint-plugin-unused-imports@4.4.1 typescript@5.5.4
 
       - name: Build Automation Architect core
         working-directory: packages/core/automation-architect
