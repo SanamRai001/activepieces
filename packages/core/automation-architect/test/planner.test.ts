@@ -136,6 +136,25 @@ describe('NaturalLanguageAutomationPlanner', () => {
         expect(notification?.risk?.class).toBe('EXTERNAL_COMMUNICATION')
     })
 
+    it('keeps the user goal authoritative when the model rewrites it', async () => {
+        const planner = new NaturalLanguageAutomationPlanner(new StaticPlannerModel({
+            status: 'READY',
+            automation: {
+                ...validAutomation,
+                goal: 'A different objective invented by the model.',
+            },
+            explanation: 'Use the grounded plan.',
+        }))
+
+        const result = await planner.plan(baseInput)
+
+        expect(result.status).toBe('READY')
+        if (result.status !== 'READY') {
+            throw new Error('Expected planner to be ready.')
+        }
+        expect(result.automation.goal).toBe(baseInput.goal)
+    })
+
     it('returns model questions when the request is materially ambiguous', async () => {
         const planner = new NaturalLanguageAutomationPlanner(new StaticPlannerModel({
             status: 'NEEDS_INPUT',
