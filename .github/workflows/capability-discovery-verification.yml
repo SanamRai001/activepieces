@@ -49,9 +49,15 @@ jobs:
         working-directory: packages/core/automation-architect
         run: bun run build
 
+      - name: Install isolated TypeScript toolchain
+        run: |
+          mkdir -p /tmp/automation-architect-ts
+          cd /tmp/automation-architect-ts
+          npm init -y >/dev/null 2>&1
+          npm install --silent --no-audit --no-fund typescript@5.5.4 @types/node@24.11.0
+
       - name: Build API
-        working-directory: packages/server/api
-        run: bun run build
+        run: /tmp/automation-architect-ts/node_modules/.bin/tsc -p packages/server/api/tsconfig.app.json --typeRoots /tmp/automation-architect-ts/node_modules/@types
 
       - name: Install isolated lint tooling
         run: |
