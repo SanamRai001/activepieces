@@ -38,7 +38,7 @@ export type ActivepiecesDraftCompilerResult =
 type DraftArtifact = {
     id: string
     status: FlowStatus
-    publishedVersionId: string | null | undefined
+    publishedVersionId?: string | null
     version: {
         valid: boolean
         trigger: FlowTrigger
