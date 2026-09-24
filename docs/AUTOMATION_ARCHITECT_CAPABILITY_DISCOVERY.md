@@ -85,10 +85,15 @@ These IDs are planner-facing references only. The Phase 4B compiler will parse/r
 
 ## Connection behavior
 
+Connection state is resolved independently through the project-scoped Activepieces connection service rather than trusting the search-result `connected` hint.
+
+This matters because keyword fallback does not always populate connection hints.
+
 When a capability requires authentication:
 
-- `connected: true` → available;
-- `connected: false` or unresolved → unavailable.
+- the piece appears in the project's active connection set → available;
+- the piece is absent → unavailable;
+- connection lookup fails → unavailable + `CONNECTION_STATUS_UNAVAILABLE` issue.
 
 This is fail-safe. The planner must ask for connection setup rather than assuming credentials exist.
 
