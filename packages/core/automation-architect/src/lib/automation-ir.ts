@@ -216,7 +216,14 @@ export const AutomationIrV1Schema = z.object({
         }
 
         for (const reference of collectStepReferences(step)) {
-            if (!stepIds.has(reference.stepId)) {
+            if (reference.stepId === step.id) {
+                ctx.addIssue({
+                    code: 'custom',
+                    path: ['steps', index],
+                    message: `Step "${step.id}" cannot reference its own output.`,
+                })
+            }
+            else if (!stepIds.has(reference.stepId)) {
                 ctx.addIssue({
                     code: 'custom',
                     path: ['steps', index],
@@ -227,14 +234,13 @@ export const AutomationIrV1Schema = z.object({
     })
 
     if (automation.trigger.type === 'EVENT') {
-        for (const reference of collectReferences(automation.trigger.input)) {
-            if (reference.source === 'STEP') {
-                ctx.addIssue({
-                    code: 'custom',
-                    path: ['trigger', 'input'],
-                    message: 'Trigger input cannot reference step output because no step has executed yet.',
-                })
-            }
+        const triggerReferences = collectReferences(automation.trigger.input)
+        if (triggerReferences.length > 0) {
+            ctx.addIssue({
+                code: 'custom',
+                path: ['trigger', 'input'],
+                message: 'Trigger configuration cannot reference runtime outputs.',
+            })
         }
     }
 
