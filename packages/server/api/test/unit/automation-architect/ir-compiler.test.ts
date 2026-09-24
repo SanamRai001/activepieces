@@ -160,7 +160,7 @@ describe('Activepieces IR compiler', () => {
             triggerName: 'new_issue',
             input: {
                 repository: 'acme/api',
-                auth: `{{connections['github-main']}}`,
+                auth: '{{connections[\'github-main\']}}',
             },
         }))
 
@@ -170,7 +170,7 @@ describe('Activepieces IR compiler', () => {
             throw new Error('Expected piece action.')
         }
         expect(action.settings.pieceVersion).toBe('1.2.3')
-        expect(action.settings.input.issueId).toBe(`{{trigger['output']['id']}}`)
+        expect(action.settings.input.issueId).toBe('{{trigger[\'output\'][\'id\']}}')
     })
 
     it('compiles cron schedules through the built-in schedule piece', async () => {
@@ -441,7 +441,7 @@ describe('Activepieces IR compiler', () => {
         if (router?.type !== FlowActionType.ROUTER) throw new Error('Expected router.')
         const branch = router.settings.branches[0]
         if (branch?.branchType !== 'CONDITION') throw new Error('Expected condition branch.')
-        expect(branch.conditions[0]?.[0]?.firstValue).toBe(`{{aa_step_001['output']['ok']}}`)
+        expect(branch.conditions[0]?.[0]?.firstValue).toBe('{{aa_step_001[\'output\'][\'ok\']}}')
     })
 
     it('rejects unsafe connection external ids before flow creation', async () => {
@@ -451,7 +451,7 @@ describe('Activepieces IR compiler', () => {
             projectId: PROJECT_ID,
             platformId: PLATFORM_ID,
             connectionBindings: {
-                'activepieces:trigger:@activepieces/piece-github:new_issue': `github['bad']`,
+                'activepieces:trigger:@activepieces/piece-github:new_issue': 'github[\'bad\']',
                 'activepieces:action:@activepieces/piece-github:add_label': 'github-main',
             },
         })
