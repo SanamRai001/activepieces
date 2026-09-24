@@ -294,7 +294,7 @@ describe('Activepieces IR compiler', () => {
         if (result.status !== 'COMPILED') throw new Error('Expected compiled result.')
         const routerOperation = result.operations.find((operation) =>
             operation.type === FlowOperationType.ADD_ACTION
-            && operation.request.action.type === FlowActionType.ROUTER
+            && operation.request.action.type === FlowActionType.ROUTER,
         )
         expect(routerOperation?.type).toBe(FlowOperationType.ADD_ACTION)
         if (routerOperation?.type !== FlowOperationType.ADD_ACTION) throw new Error('Expected router action.')
@@ -307,7 +307,7 @@ describe('Activepieces IR compiler', () => {
         }))
         const branchOperations = result.operations.filter((operation) =>
             operation.type === FlowOperationType.ADD_ACTION
-            && operation.request.stepLocationRelativeToParent === 'INSIDE_BRANCH'
+            && operation.request.stepLocationRelativeToParent === 'INSIDE_BRANCH',
         )
         expect(branchOperations).toEqual([
             expect.objectContaining({
@@ -471,7 +471,7 @@ describe('Activepieces IR compiler', () => {
         if (result.status !== 'COMPILED') throw new Error('Expected compiled result.')
         const routerOperation = result.operations.find((operation) =>
             operation.type === FlowOperationType.ADD_ACTION
-            && operation.request.action.type === FlowActionType.ROUTER
+            && operation.request.action.type === FlowActionType.ROUTER,
         )
         if (routerOperation?.type !== FlowOperationType.ADD_ACTION) throw new Error('Expected router action.')
         const router = routerOperation.request.action
