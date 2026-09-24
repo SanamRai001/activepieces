@@ -21,6 +21,7 @@ function createDependencies(overrides: Partial<ActivepiecesCapabilityDiscoveryDe
             results: [],
         }),
         getPiece: async () => undefined,
+        listConnectedPieceNames: async () => new Set<string>(),
         ...overrides,
     }
 }
@@ -86,6 +87,7 @@ describe('Activepieces capability discovery adapter', () => {
                 }],
             }),
             getPiece: async () => piece({ actionClassification: 'WRITE' }),
+            listConnectedPieceNames: async () => new Set(['@activepieces/piece-example']),
         }))
 
         const result = await service.discover({
@@ -277,6 +279,7 @@ describe('Activepieces capability discovery adapter', () => {
                 }],
             }),
             getPiece: async () => piece(),
+            listConnectedPieceNames: async () => new Set(['@activepieces/piece-example']),
         }))
 
         const result = await service.discover({
@@ -293,6 +296,37 @@ describe('Activepieces capability discovery adapter', () => {
             }),
         ])
         expect(result.searchModes.triggers).toBe('keyword')
+    })
+
+    it('uses project connection state even when keyword search cannot provide connected flags', async () => {
+        const service = createActivepiecesCapabilityDiscoveryService(createDependencies({
+            searchActions: async () => ({
+                mode: 'keyword',
+                degradeReason: 'no-embedder',
+                results: [{
+                    pieceName: '@activepieces/piece-example',
+                    actionName: 'write_item',
+                    displayName: 'Write Item',
+                    oneLineDescription: 'Write.',
+                    requiresConnection: true,
+                    connected: undefined,
+                }],
+            }),
+            getPiece: async () => piece({ actionClassification: 'WRITE' }),
+            listConnectedPieceNames: async () => new Set(['@activepieces/piece-example']),
+        }))
+
+        const result = await service.discover({
+            query: 'write',
+            ...project,
+            kinds: ['ACTION'],
+        })
+
+        expect(result.capabilities[0]?.connection).toEqual({
+            required: true,
+            available: true,
+            label: 'Example',
+        })
     })
 
     it('deduplicates repeated search hits and caches metadata lookup per piece', async () => {
