@@ -26,6 +26,7 @@ export default defineConfig({
       '@activepieces/pieces-common': path.resolve(__dirname, '../../../packages/pieces/common/src/index.ts'),
       '@activepieces/server-utils': path.resolve(__dirname, '../../../packages/server/utils/src/index.ts'),
       '@activepieces/ai-providers': path.resolve(__dirname, '../../../packages/core/ai-providers/src/index.ts'),
+      '@activepieces/automation-architect': path.resolve(__dirname, '../../../packages/core/automation-architect/src/index.ts'),
 
     },
   },

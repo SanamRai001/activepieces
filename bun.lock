@@ -10744,6 +10744,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@1password/sdk": "0.4.0",
+        "@activepieces/automation-architect": "workspace:*",
         "@activepieces/core-execution": "workspace:*",
         "@activepieces/core-formula": "workspace:*",
         "@activepieces/core-piece-types": "workspace:*",
