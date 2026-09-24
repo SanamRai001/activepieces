@@ -89,3 +89,43 @@ Authorization policy is represented separately by `AutomationPolicy` and produce
 - `DENY`
 
 A planner must not be able to grant itself permission for a destructive, sensitive, financial, or otherwise restricted action.
+
+
+## Natural-language planner prototype
+
+The planner accepts:
+
+- a human goal;
+- a provider-neutral capability catalog;
+- connection availability;
+- deterministic policy;
+- optional constraints.
+
+It calls a model only to propose either:
+
+- a candidate Automation IR V1 plan; or
+- focused questions when material information is missing.
+
+The model does not get final authority. Deterministic post-processing:
+
+- parses the model envelope strictly;
+- validates Automation IR V1;
+- rejects invented capability IDs;
+- rejects trigger/action/notification kind mismatches;
+- requires authoritative risk metadata for action and notification capabilities;
+- detects missing connections;
+- applies deterministic deny and approval policy;
+- replaces model-supplied capability risk with catalog risk;
+- keeps the user's original goal authoritative.
+
+Planner results are explicit:
+
+```text
+READY
+NEEDS_INPUT
+FAILED
+```
+
+A `READY` result is still only a plan. This package never creates, activates, publishes, or executes an Activepieces flow.
+
+Model adapters receive the centralized `AUTOMATION_PLANNER_RULES` contract so provider-specific integrations do not independently redefine core planning behavior.
