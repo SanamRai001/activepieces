@@ -360,6 +360,74 @@ describe('Activepieces capability discovery adapter', () => {
         expect(metadataCalls).toBe(1)
     })
 
+    it('fails safe when project connection state cannot be resolved', async () => {
+        const service = createActivepiecesCapabilityDiscoveryService(createDependencies({
+            searchActions: async () => ({
+                mode: 'semantic',
+                results: [{
+                    pieceName: '@activepieces/piece-example',
+                    actionName: 'write_item',
+                    displayName: 'Write Item',
+                    oneLineDescription: 'Write.',
+                    requiresConnection: true,
+                }],
+            }),
+            getPiece: async () => piece({ actionClassification: 'WRITE' }),
+            listConnectedPieceNames: async () => {
+                throw new Error('connection lookup unavailable')
+            },
+        }))
+
+        const result = await service.discover({
+            query: 'write',
+            ...project,
+            kinds: ['ACTION'],
+        })
+
+        expect(result.capabilities[0]?.connection.available).toBe(false)
+        expect(result.issues).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                code: 'CONNECTION_STATUS_UNAVAILABLE',
+            }),
+        ]))
+    })
+
+    it('trims the query and clamps result limits before calling Activepieces search', async () => {
+        const calls: Array<{ query: string, limit?: number }> = []
+        const service = createActivepiecesCapabilityDiscoveryService(createDependencies({
+            searchActions: async (query, params) => {
+                calls.push({ query, limit: params.limit })
+                return { mode: 'semantic', results: [] }
+            },
+        }))
+
+        await service.discover({
+            query: '   write item   ',
+            ...project,
+            kinds: ['ACTION'],
+            limitPerKind: 999,
+        })
+
+        expect(calls).toEqual([{ query: 'write item', limit: 20 }])
+    })
+
+    it('rejects an empty discovery query before calling search', async () => {
+        let called = false
+        const service = createActivepiecesCapabilityDiscoveryService(createDependencies({
+            searchActions: async () => {
+                called = true
+                return { mode: 'semantic', results: [] }
+            },
+        }))
+
+        await expect(service.discover({
+            query: '   ',
+            ...project,
+            kinds: ['ACTION'],
+        })).rejects.toThrow('must not be empty')
+        expect(called).toBe(false)
+    })
+
     it('does not search a capability kind excluded by the caller', async () => {
         let actionSearchCalled = false
         const service = createActivepiecesCapabilityDiscoveryService(createDependencies({
