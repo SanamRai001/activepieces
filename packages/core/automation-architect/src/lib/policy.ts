@@ -5,7 +5,18 @@ export const AutomationPolicySchema = z.object({
     requireApprovalFor: z.array(AutomationRiskClassSchema),
     deny: z.array(AutomationRiskClassSchema).default([]),
     maxAttemptsPerStep: z.number().int().min(1).max(20).default(3),
-}).strict()
+}).strict().superRefine((policy, ctx) => {
+    const denied = new Set(policy.deny)
+    policy.requireApprovalFor.forEach((riskClass, index) => {
+        if (denied.has(riskClass)) {
+            ctx.addIssue({
+                code: 'custom',
+                path: ['requireApprovalFor', index],
+                message: `Risk class ${riskClass} cannot be both denied and approval-gated.`,
+            })
+        }
+    })
+})
 
 export type AutomationPolicy = z.infer<typeof AutomationPolicySchema>
 
