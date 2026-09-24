@@ -7,6 +7,7 @@ import {
 } from '@activepieces/automation-architect'
 import { SAFE_EXTERNAL_ID_PATTERN } from '@activepieces/core-utils'
 import {
+    BranchCondition as BranchConditionSchema,
     BranchExecutionType,
     BranchOperator,
     CreateFlowRequest as CreateFlowRequestSchema,
@@ -380,7 +381,7 @@ class CompilerContext {
     private async compileCondition(
         step: Extract<AutomationStep, { type: 'CONDITION' }>,
     ): Promise<FlowAction> {
-        const condition = compileBranchCondition(step, this.params.stepNameById)
+        const condition = BranchConditionSchema.parse(compileBranchCondition(step, this.params.stepNameById))
         return {
             name: this.stepName(step.id),
             displayName: step.name,
