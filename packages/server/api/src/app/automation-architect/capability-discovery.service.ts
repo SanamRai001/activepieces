@@ -1,14 +1,12 @@
-import { PlannerCapability } from '@activepieces/automation-architect'
-import { ActionClassification } from '@activepieces/pieces-framework'
-import { FastifyBaseLogger } from 'fastify'
+import type { PlannerCapability } from '@activepieces/automation-architect'
+import type { ActionClassification } from '@activepieces/pieces-framework'
+import type { FastifyBaseLogger } from 'fastify'
 import { appConnectionService } from '../app-connection/app-connection-service/app-connection-service'
 import { pieceMetadataService } from '../pieces/metadata/piece-metadata-service'
 import {
     toolSearchService,
-    ToolSearchActionResult,
-    ToolSearchActionResponse,
-    ToolSearchTriggerResult,
-    ToolSearchTriggerResponse,
+    type ToolSearchActionResponse,
+    type ToolSearchTriggerResponse,
 } from '../tool-search/tool-search.service'
 
 const DEFAULT_LIMIT_PER_KIND = 5
@@ -265,9 +263,10 @@ function resolveActionRisk(classification: ActionClassification | undefined): Pl
                 rationale: 'Activepieces classifies this action as WRITE; Automation Architect conservatively treats generic writes as sensitive mutations until a narrower deterministic classifier exists.',
             }
         case undefined:
+        default:
             return {
                 class: 'SENSITIVE_MUTATION',
-                rationale: 'This action has no Activepieces classification; Automation Architect conservatively treats unclassified actions as sensitive mutations.',
+                rationale: 'This action has no recognized Activepieces classification; Automation Architect conservatively treats it as a sensitive mutation.',
             }
     }
 }
@@ -321,7 +320,6 @@ async function getPieceCached(params: {
     params.pieceCache.set(params.candidate.pieceName, lookup)
     return lookup
 }
-
 
 async function resolveConnectedPieceNames(
     dependencies: ActivepiecesCapabilityDiscoveryDependencies,
