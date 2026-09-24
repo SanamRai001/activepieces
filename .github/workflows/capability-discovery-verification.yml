@@ -37,6 +37,8 @@ jobs:
         run: bunx turbo run build --filter=api
 
       - name: Lint capability discovery files
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           bunx eslint \
             'packages/server/api/src/app/automation-architect/capability-discovery.ts' \
