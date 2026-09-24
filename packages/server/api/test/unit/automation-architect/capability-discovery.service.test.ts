@@ -1,6 +1,6 @@
-import { ActionClassification } from '@activepieces/pieces-framework'
 import { describe, expect, it } from 'vitest'
 import {
+    type ActivepiecesActionClassification,
     type ActivepiecesCapabilityDiscoveryDependencies,
     createActivepiecesCapabilityDiscoveryService,
 } from '../../../src/app/automation-architect/capability-discovery'
@@ -27,7 +27,7 @@ function createDependencies(overrides: Partial<ActivepiecesCapabilityDiscoveryDe
 }
 
 function piece(params?: {
-    actionClassification?: ActionClassification
+    actionClassification?: ActivepiecesActionClassification
     includeAction?: boolean
     includeTrigger?: boolean
 }) {
