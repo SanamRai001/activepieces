@@ -11,151 +11,176 @@ Build an **Automation Architect** layer on top of the Activepieces Community Edi
 - Default branch: `main`
 - Foundation branch: `feat/automation-architect-foundation`
 - Phase 2 branch: `feat/automation-ir`
-- Working branch: `feat/natural-language-planner-phase3`
+- Phase 3 branch: `feat/natural-language-planner-phase3`
+- Working branch: `feat/activepieces-capability-discovery`
 - Fork baseline inspected: `17e2ac0b01797f8472e781122a396c5d07acc974`
 - Foundation PR: #1
 - Phase 2 PR: #2
 - Phase 3 PR: #4 (clean replacement; #3 superseded)
+- Phase 4A PR: #5
 
 ## Completed phase
 
-**Phase 3 — Natural-language Planner Prototype**
+**Phase 4A — Activepieces Capability Discovery Adapter**
 
 ### Changes
 
-- Added provider-neutral capability contracts:
-  - `TRIGGER`;
-  - `ACTION`;
-  - `NOTIFICATION`.
-- Capability catalog entries carry:
-  - stable capability ID;
-  - name/description;
-  - kind;
-  - connection requirement/availability;
-  - authoritative risk metadata for side-effect-capable actions/notifications.
-- Added planner input contract:
-  - user goal;
-  - supplied capability catalog;
-  - deterministic policy;
-  - optional constraints.
-- Added small provider-neutral model interface.
-- Added centralized `AUTOMATION_PLANNER_RULES` so model adapters receive the same behavioral contract.
-- Model output is restricted to:
-  - `READY` with a candidate automation; or
-  - `NEEDS_INPUT` with focused questions.
-- Added strict model-envelope parsing before IR parsing.
-- Added deterministic post-model grounding:
-  - rejects invented capability IDs;
-  - rejects capability-kind mismatches;
-  - detects unavailable required connections;
-  - applies deterministic deny policy;
-  - reports approval-required operations;
-  - replaces model-supplied risk with authoritative catalog risk;
-  - keeps the user's original goal authoritative.
-- Planner result states:
-  - `READY`;
-  - `NEEDS_INPUT`;
-  - `FAILED`.
-- Added diagnostics:
-  - `INVALID_INPUT`;
-  - `MODEL_FAILURE`;
-  - `MODEL_OUTPUT_INVALID`;
-  - `INVALID_AUTOMATION_IR`;
-  - `UNKNOWN_CAPABILITY`;
-  - `CAPABILITY_KIND_MISMATCH`;
-  - `CONNECTION_REQUIRED`;
-  - `POLICY_APPROVAL_REQUIRED`;
-  - `POLICY_DENIED`.
-- Added `docs/AUTOMATION_ARCHITECT_PLANNER.md`.
-- Extended the package README with planner trust boundaries and behavior.
-- No Activepieces flow creation, mutation, execution, publishing, or external side effect was added.
-
-### Phase 2 packaging correction
-
-Phase 3 verification exposed a real package-boundary issue from Phase 2: isolated TypeScript builds require `tslib`.
-
-Resolved by:
-
-- declaring `tslib@2.6.2` in `@activepieces/automation-architect`;
-- updating `bun.lock`;
-- verifying the Phase 2 package independently.
-
-Phase 2 final verification:
-
-- Workflow run: `36017251158`
-- frozen filtered install: PASS
-- lockfile stability: PASS
-- build: PASS
-- lint: PASS
-- tests: **18/18 PASS**
+- Added a server-side Automation Architect capability discovery module under:
+  - `packages/server/api/src/app/automation-architect/`
+- Kept the implementation outside Activepieces Enterprise-licensed paths.
+- Split the implementation into:
+  - a **pure provider adapter** in `capability-discovery.ts`;
+  - thin **Activepieces server wiring** in `capability-discovery.service.ts`.
+- Added `@activepieces/automation-architect` as an API workspace dependency.
+- Added the Automation Architect source alias to API Vitest configuration.
+- Connected real Activepieces discovery surfaces:
+  - `toolSearchService.searchActions(...)`;
+  - `toolSearchService.searchTriggers(...)`.
+- Re-verifies every search candidate through project-scoped:
+  - `pieceMetadataService.get({ name, platformId, projectId })`.
+- This deliberately avoids treating search-index results as sufficient proof that a capability is still visible/available.
+- Added authoritative project connection-state lookup using:
+  - `appConnectionService.listConnectedPieces(...)`.
+- Connection state is resolved independently from search-result `connected` hints because keyword fallback does not reliably populate those hints.
+- If connection-state lookup fails:
+  - discovery continues;
+  - authenticated capabilities are treated as unavailable;
+  - `CONNECTION_STATUS_UNAVAILABLE` is returned.
+- Added stable planner-facing capability IDs:
+  - `activepieces:trigger:<pieceName>:<triggerName>`;
+  - `activepieces:action:<pieceName>:<actionName>`.
+- Added deterministic action-risk mapping from Activepieces `classification`:
+  - `READ` → `READ_ONLY`;
+  - `SEARCH` → `READ_ONLY`;
+  - `WRITE` → `SENSITIVE_MUTATION`;
+  - `DESTRUCTIVE` → `DESTRUCTIVE`;
+  - missing/unknown → `SENSITIVE_MUTATION`.
+- `WRITE` and unclassified actions are intentionally conservative and cannot be downgraded by an LLM.
+- Added stale-index handling:
+  - missing/hidden piece → candidate discarded;
+  - missing action/trigger → candidate discarded;
+  - structured issue returned instead of fabricating capability metadata.
+- Added keyword-fallback diagnostics without rejecting usable keyword matches.
+- Added query trimming and result-limit clamping.
+- Added per-piece metadata lookup caching and capability deduplication.
+- Added `docs/AUTOMATION_ARCHITECT_CAPABILITY_DISCOVERY.md`.
+- Added focused unit coverage for the pure adapter.
+- No flow creation, mutation, execution, publishing, activation, or side effect was added.
 
 ## Verification
 
-Phase 3 final verification:
+### Final Phase 4A verification
 
-- Workflow: `Planner Verification`
-- Run ID: `36017252147`
-- Verified code/package head: `e287ca0ad1f1f726664522a00132f92c6a7e0f0a`
-- filtered frozen dependency install: PASS
-- committed lockfile stability: PASS
-- TypeScript build: PASS
-- ESLint: PASS
-- Vitest: PASS
-  - 2 test files passed
-  - **33 tests passed**
+- Workflow: `Capability Discovery Verification`
+- Run ID: `36023588151`
+- Verified code/CI head: `5675c91805c6ce65256afa4246926b439d8e95b9`
+- Repository install with committed lockfile: **PASS**
+- API build through Turborepo workspace dependency graph: **PASS**
+  - 17 build tasks successful
+  - includes `@activepieces/automation-architect`
+  - includes final `api:build`
+- Focused ESLint: **PASS**
+  - 0 errors
+  - 3 existing-rule warnings for explicit return types
+- Focused Vitest: **PASS**
+  - 1 test file passed
+  - **17 tests passed**
   - 0 failed
 
-The commits after the verified code head in this phase are documentation/state-only.
+The temporary fork-only verification workflow was removed after the successful run.
 
-Temporary fork-only verification workflows were removed after the successful runs.
+Commits after the verified code/CI head are documentation/temporary-CI cleanup only.
+
+### Verification lessons
+
+Earlier verification attempts exposed verifier/environment problems rather than production-code failures:
+
+- filtered workspace installation omitted dependencies needed for a full API build;
+- standalone `tsc` bypassed the monorepo dependency build graph;
+- an isolated ESLint sandbox omitted Activepieces ESLint plugins;
+- typed API lint exceeded Node's default heap.
+
+Final verification therefore uses:
+
+```text
+bun install --frozen-lockfile
+    ↓
+turbo run build --filter=api
+    ↓
+repository-pinned typed ESLint
+    ↓
+focused adapter Vitest
+```
+
+This is the correct validation path for this integration.
 
 ## Decisions
 
-1. **The model proposes; deterministic code decides whether the plan is acceptable.**
-2. **The original human goal is authoritative.** A model cannot silently rewrite the objective.
-3. **Capability IDs are catalog-authoritative.** The planner cannot invent tools.
-4. **Capability risk is catalog-authoritative for ACTION/NOTIFICATION capabilities.** Model risk labels are not trusted.
-5. **Risk metadata is not authorization.** Policy remains a separate deterministic contract.
-6. **A READY plan is not permission to execute.** It can still contain approval-required diagnostics.
-7. **Missing connections produce NEEDS_INPUT rather than fabricated credentials.**
-8. **Prefer deterministic conditions over AI decisions when an exact rule is sufficient.**
-9. **The planner remains provider-neutral.** Activepieces discovery/runtime details stay outside this package.
-10. **No browser automation yet.**
-11. **No live paid-model dependency in core tests.** Planner behavior is tested with mocked model output.
-12. **No execution/publishing until capability grounding and compilation are connected to real Activepieces surfaces.**
-13. **Coding-project supervision remains the first real vertical after the general pipeline is safe enough.**
+1. **Planner core remains provider-neutral.** Activepieces-specific discovery stays in the server adapter.
+2. **Search results are candidates, not authority.** Project-scoped piece metadata must confirm each component.
+3. **Project visibility is preserved explicitly.** Metadata resolution passes `projectId`.
+4. **Connection state is authoritative from the project connection service**, not from semantic/keyword search result hints.
+5. **Connection lookup fails closed for availability.** The system asks for connection setup rather than assuming credentials exist.
+6. **Action risk is deterministic.** Activepieces classification is used before any LLM judgment.
+7. **Unknown/write risk is conservative.** Generic writes are `SENSITIVE_MUTATION` until a deterministic narrower classifier exists.
+8. **No LLM may lower catalog risk.**
+9. **Keyword fallback is acceptable but observable.** It produces a degradation issue.
+10. **Stale/hidden components are dropped rather than exposed to the planner.**
+11. **Pure adapter logic is separated from server wiring** to keep unit tests fast and architecture boundaries clear.
+12. **Phase 4A remains read-only.** No flow is created or executed.
+13. **No new public HTTP route yet.** The service remains an internal server capability until the planner/compiler lifecycle stabilizes.
+14. **Browser automation remains out of MVP scope.**
 
 ## Risks / open boundaries
 
-- The Phase 3 catalog is supplied by the caller; it is not yet populated from real Activepieces pieces.
-- Capability parameter/input schemas are not yet provider-neutral planner contracts. The runtime adapter must resolve real required fields before compilation.
-- IR reference validation does not yet prove dominance/execution-order correctness across every branch path.
-- Natural-language schedules still need deterministic normalization/validation before becoming real schedule triggers.
-- Approval-required diagnostics are informational at planner stage; execution policy must enforce them later.
-- The planner model interface exists, but no production model-provider adapter is wired yet.
-- Activepieces upstream changes quickly, so server integration should remain narrow and additive.
+- Capability discovery currently returns identity, description, connection state and risk, but not the full action/trigger input-property schema.
+- Dynamic Activepieces properties may depend on auth, project context, or other input values and need a separate schema-resolution step before compilation.
+- `WRITE` is intentionally broad; later deterministic classifiers may safely narrow some actions to:
+  - `REVERSIBLE_WRITE`;
+  - `EXTERNAL_COMMUNICATION`;
+  - `FINANCIAL`.
+- Stable capability IDs currently encode piece/component names; Phase 4B must parse them strictly and re-resolve metadata before compilation.
+- IR references still lack full control-flow dominance validation.
+- Schedule normalization remains unresolved.
+- Approval-required planner diagnostics are not yet runtime-enforced because runtime compilation/activation does not exist yet.
+- No production model-provider adapter is wired yet.
+- Activepieces upstream changes quickly, so server integration must remain narrow and additive.
 
 ## Next phase
 
-**Phase 4A — Activepieces Capability Discovery Adapter**
+**Phase 4B — Activepieces IR Compiler**
 
-Goal: replace manually supplied capability catalogs with real, project-scoped Activepieces capability metadata while keeping the planner core provider-neutral.
+Goal: turn validated, grounded Automation IR into a real **draft + disabled Activepieces flow** through existing typed flow services and operations.
 
 Smallest useful scope:
 
-1. add a server-side Automation Architect module outside Enterprise-licensed paths;
-2. adapt `toolSearchService.searchActions/searchTriggers` into planner capability candidates;
-3. resolve selected candidates through `pieceMetadataService`;
-4. map real project connection availability into the provider-neutral capability contract;
-5. derive authoritative risk defaults/metadata without trusting an LLM;
-6. expose a narrow service that returns planner-ready capabilities;
-7. add focused unit/integration tests around:
-   - visibility filtering;
-   - missing connections;
-   - trigger/action kind mapping;
-   - unknown piece/action handling;
-   - no invented capabilities.
+1. define strict parsing for Activepieces capability IDs;
+2. re-resolve each referenced piece/action/trigger through project-scoped metadata;
+3. resolve exact piece versions;
+4. map IR trigger/action/condition constructs into:
+   - `CreateFlowRequest`;
+   - `FlowOperationRequest[]`;
+5. use existing Activepieces flow lifecycle:
+   - `flowService.create(...)`;
+   - `flowService.update(...)`;
+   - `flowVersionService.applyOperation(...)`;
+6. preserve existing Activepieces operation validation;
+7. keep generated flows:
+   - **draft**;
+   - **disabled**;
+8. report explicit compiler outcomes:
+   - complete draft;
+   - partial draft;
+   - failed cleanly;
+   - failed with artifact;
+9. add focused tests for:
+   - unknown/stale capability IDs;
+   - trigger/action mapping;
+   - deterministic conditions;
+   - connection requirements;
+   - partial failure behavior;
+   - never-publish guarantees.
 
-Do **not** compile or create Activepieces flows in Phase 4A.
+Do **not** add automatic publishing/activation in Phase 4B.
 
-After Phase 4A, proceed to **Phase 4B — Activepieces IR Compiler**, converting validated IR into typed `CreateFlowRequest` / `FlowOperationRequest[]` while keeping generated flows draft + disabled.
+After Phase 4B, proceed to validation/simulation before any activation path.
