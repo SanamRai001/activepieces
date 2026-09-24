@@ -5,6 +5,7 @@ import {
     LATEST_AUTOMATION_IR_VERSION,
 } from './automation-ir'
 import {
+    AUTOMATION_PLANNER_RULES,
     AutomationPlannerInput,
     AutomationPlannerInputSchema,
     AutomationPlannerModel,
@@ -36,6 +37,7 @@ export class NaturalLanguageAutomationPlanner {
             rawModelResponse = await this.model.generatePlan({
                 ...parsedInput.data,
                 irSchemaVersion: LATEST_AUTOMATION_IR_VERSION,
+                rules: [...AUTOMATION_PLANNER_RULES],
             })
         }
         catch (error) {
