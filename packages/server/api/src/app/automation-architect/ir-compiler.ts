@@ -5,6 +5,7 @@ import {
     type AutomationStep,
     type AutomationValue,
 } from '@activepieces/automation-architect'
+import { SAFE_EXTERNAL_ID_PATTERN } from '@activepieces/core-utils'
 import {
     BranchExecutionType,
     BranchOperator,
@@ -434,7 +435,7 @@ class CompilerContext {
                 params.capabilityId,
             )
         }
-        if (/['{}\[\]]/.test(externalId)) {
+        if (!SAFE_EXTERNAL_ID_PATTERN.test(externalId)) {
             throw compilerError(
                 'INVALID_CONNECTION_BINDING',
                 `Connection externalId for "${params.capabilityId}" contains characters that are unsafe in an Activepieces connection expression.`,
@@ -708,6 +709,13 @@ function compileBranchCondition(
                     firstValue,
                     operator: right ? BranchOperator.BOOLEAN_IS_FALSE : BranchOperator.BOOLEAN_IS_TRUE,
                 }
+            }
+            if (typeof right === 'number') {
+                throw compilerError(
+                    'UNSUPPORTED_CONDITION',
+                    'Numeric NOT_EQUALS has no exact single Activepieces branch operator.',
+                    step.id,
+                )
             }
             if (right === null || right === undefined) {
                 throw compilerError('UNSUPPORTED_CONDITION', 'NOT_EQUALS with null/undefined is not supported.', step.id)
