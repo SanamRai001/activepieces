@@ -1,0 +1,69 @@
+name: Capability Discovery Verification
+
+on:
+  push:
+    branches:
+      - feat/activepieces-capability-discovery
+
+permissions:
+  contents: write
+
+concurrency:
+  group: capability-discovery-verification
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feat/activepieces-capability-discovery
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: Install API and Automation Architect dependencies
+        run: bun install --filter api --filter @activepieces/automation-architect
+
+      - name: Commit lockfile when needed
+        run: |
+          if git diff --quiet -- bun.lock; then
+            echo "bun.lock is already current"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add bun.lock
+            git commit -m "chore: update capability discovery lockfile"
+            git push origin HEAD:feat/activepieces-capability-discovery
+          fi
+
+      - name: Build Automation Architect core
+        working-directory: packages/core/automation-architect
+        run: bun run build
+
+      - name: Build API
+        working-directory: packages/server/api
+        run: bun run build
+
+      - name: Install isolated lint tooling
+        run: |
+          mkdir -p /tmp/automation-architect-lint
+          cd /tmp/automation-architect-lint
+          npm init -y >/dev/null 2>&1
+          npm install --silent --no-audit --no-fund eslint@8.57.0 @typescript-eslint/eslint-plugin@7.18.0 @typescript-eslint/parser@7.18.0 eslint-plugin-unused-imports@4.4.1 typescript@5.5.4
+
+      - name: Lint capability discovery files
+        run: |
+          /tmp/automation-architect-lint/node_modules/.bin/eslint             'packages/server/api/src/app/automation-architect/capability-discovery.service.ts'             'packages/server/api/test/unit/automation-architect/capability-discovery.service.test.ts'             --resolve-plugins-relative-to /tmp/automation-architect-lint/node_modules
+
+      - name: Test capability discovery adapter
+        working-directory: packages/server/api
+        run: bunx vitest run test/unit/automation-architect/capability-discovery.service.test.ts
