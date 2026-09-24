@@ -3,10 +3,10 @@ import type { FastifyBaseLogger } from 'fastify'
 import { flowService } from '../flows/flow/flow.service'
 import { pieceMetadataService } from '../pieces/metadata/piece-metadata-service'
 import {
-    createActivepiecesIrCompiler,
     type ActivepiecesIrCompilerDiagnostic,
     type ActivepiecesIrCompilerParams,
     type ActivepiecesIrCompilerResult,
+    createActivepiecesIrCompiler,
 } from './ir-compiler'
 
 export type ActivepiecesDraftCompilerParams = ActivepiecesIrCompilerParams & {
