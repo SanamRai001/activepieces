@@ -155,6 +155,30 @@ describe('NaturalLanguageAutomationPlanner', () => {
         expect(result.automation.goal).toBe(baseInput.goal)
     })
 
+    it('passes centralized safety rules to the model adapter', async () => {
+        let capturedRules: string[] = []
+        const model: AutomationPlannerModel = {
+            async generatePlan(input): Promise<unknown> {
+                capturedRules = input.rules
+                return {
+                    status: 'READY',
+                    automation: validAutomation,
+                    explanation: 'Use the supplied capabilities only.',
+                }
+            },
+        }
+
+        const planner = new NaturalLanguageAutomationPlanner(model)
+        const result = await planner.plan(baseInput)
+
+        expect(result.status).toBe('READY')
+        expect(capturedRules).toEqual(expect.arrayContaining([
+            expect.stringContaining('Use only capability ids supplied'),
+            expect.stringContaining('Prefer deterministic conditions'),
+            expect.stringContaining('never execute, publish, activate'),
+        ]))
+    })
+
     it('returns model questions when the request is materially ambiguous', async () => {
         const planner = new NaturalLanguageAutomationPlanner(new StaticPlannerModel({
             status: 'NEEDS_INPUT',
