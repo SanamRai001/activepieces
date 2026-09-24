@@ -376,6 +376,134 @@ describe('Activepieces IR compiler', () => {
         }))
     })
 
+    it('rewrites condition references to deterministic Activepieces step names', async () => {
+        const compiler = createActivepiecesIrCompiler(dependencies())
+        const result = await compiler.compile({
+            automation: {
+                schemaVersion: '1',
+                name: 'Referenced condition',
+                goal: 'Branch on a prior step output.',
+                trigger: {
+                    type: 'EVENT',
+                    capability: 'activepieces:trigger:@activepieces/piece-github:new_issue',
+                    input: { repository: 'acme/api' },
+                    next: 'label',
+                },
+                steps: [
+                    {
+                        id: 'label',
+                        name: 'Label issue',
+                        type: 'ACTION',
+                        capability: 'activepieces:action:@activepieces/piece-github:add_label',
+                        input: { issueId: '1', label: 'urgent' },
+                        next: 'check',
+                    },
+                    {
+                        id: 'check',
+                        name: 'Check result',
+                        type: 'CONDITION',
+                        expression: {
+                            left: {
+                                kind: 'REFERENCE',
+                                source: 'STEP',
+                                stepId: 'label',
+                                path: ['ok'],
+                            },
+                            operator: 'IS_TRUE',
+                        },
+                        ifTrue: 'comment',
+                    },
+                    {
+                        id: 'comment',
+                        name: 'Comment',
+                        type: 'ACTION',
+                        capability: 'activepieces:action:@activepieces/piece-github:send_comment',
+                        input: { issueId: '1', body: 'done' },
+                    },
+                ],
+            },
+            projectId: PROJECT_ID,
+            platformId: PLATFORM_ID,
+            connectionBindings: {
+                'activepieces:trigger:@activepieces/piece-github:new_issue': 'github-main',
+                'activepieces:action:@activepieces/piece-github:add_label': 'github-main',
+                'activepieces:action:@activepieces/piece-github:send_comment': 'github-main',
+            },
+        })
+
+        expect(result.status).toBe('COMPILED')
+        if (result.status !== 'COMPILED') throw new Error('Expected compiled result.')
+        const operation = result.operations[0]
+        if (operation?.type !== FlowOperationType.IMPORT_FLOW) throw new Error('Expected import.')
+        const label = operation.request.trigger.nextAction
+        const router = label?.nextAction
+        expect(router?.type).toBe(FlowActionType.ROUTER)
+        if (router?.type !== FlowActionType.ROUTER) throw new Error('Expected router.')
+        const branch = router.settings.branches[0]
+        if (branch?.branchType !== 'CONDITION') throw new Error('Expected condition branch.')
+        expect(branch.conditions[0]?.[0]?.firstValue).toBe("{{aa_step_001['output']['ok']}}")
+    })
+
+    it('rejects unsafe connection external ids before flow creation', async () => {
+        const compiler = createActivepiecesIrCompiler(dependencies())
+        const result = await compiler.compile({
+            automation: baseEventAutomation(),
+            projectId: PROJECT_ID,
+            platformId: PLATFORM_ID,
+            connectionBindings: {
+                'activepieces:trigger:@activepieces/piece-github:new_issue': "github['bad']",
+                'activepieces:action:@activepieces/piece-github:add_label': 'github-main',
+            },
+        })
+
+        expect(result).toEqual(expect.objectContaining({
+            status: 'FAILED',
+            diagnostics: expect.arrayContaining([
+                expect.objectContaining({
+                    code: 'INVALID_CONNECTION_BINDING',
+                }),
+            ]),
+        }))
+    })
+
+    it('rejects numeric NOT_EQUALS instead of approximating its semantics', async () => {
+        const compiler = createActivepiecesIrCompiler(dependencies())
+        const result = await compiler.compile({
+            automation: {
+                schemaVersion: '1',
+                name: 'Numeric inequality',
+                goal: 'Compare numbers safely.',
+                trigger: {
+                    type: 'SCHEDULE',
+                    cron: '0 * * * *',
+                    next: 'condition',
+                },
+                steps: [{
+                    id: 'condition',
+                    name: 'Not equal',
+                    type: 'CONDITION',
+                    expression: {
+                        left: 1,
+                        operator: 'NOT_EQUALS',
+                        right: 2,
+                    },
+                }],
+            },
+            projectId: PROJECT_ID,
+            platformId: PLATFORM_ID,
+        })
+
+        expect(result).toEqual(expect.objectContaining({
+            status: 'FAILED',
+            diagnostics: expect.arrayContaining([
+                expect.objectContaining({
+                    code: 'UNSUPPORTED_CONDITION',
+                    stepId: 'condition',
+                }),
+            ]),
+        }))
+    })
+
     it('rejects stale or invisible capabilities during project-scoped re-resolution', async () => {
         const compiler = createActivepiecesIrCompiler(dependencies({}))
         const result = await compiler.compile({
