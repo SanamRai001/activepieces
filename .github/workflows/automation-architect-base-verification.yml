@@ -1,0 +1,54 @@
+name: Automation Architect Base Verification
+
+on:
+  push:
+    branches:
+      - feat/automation-ir
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feat/automation-ir
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: Install package dependencies
+        run: bun install --filter @activepieces/automation-architect
+
+      - name: Commit lockfile when needed
+        run: |
+          if git diff --quiet -- bun.lock; then
+            echo "bun.lock is already current"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add bun.lock
+            git commit -m "chore: update automation architect lockfile"
+            git push origin HEAD:feat/automation-ir
+          fi
+
+      - name: Build Automation Architect core
+        working-directory: packages/core/automation-architect
+        run: bun run build
+
+      - name: Lint Automation Architect core
+        working-directory: packages/core/automation-architect
+        run: bun run lint
+
+      - name: Test Automation Architect core
+        working-directory: packages/core/automation-architect
+        run: bun run test
