@@ -33,20 +33,16 @@ jobs:
       - name: Install package dependencies
         run: bun install --frozen-lockfile --filter @activepieces/automation-architect
 
+      - name: Confirm committed lockfile is stable
+        run: |
+          if ! git diff --quiet -- bun.lock; then
+            echo "::error::bun.lock changed during frozen install"
+            git diff -- bun.lock
+            exit 1
+          fi
+
       - name: Install repository lint tooling
         run: bun add --no-save --dev eslint@8.57.0 @typescript-eslint/eslint-plugin@7.18.0 @typescript-eslint/parser@7.18.0 eslint-plugin-unused-imports@4.4.1
-
-      - name: Commit lockfile when needed
-        run: |
-          if git diff --quiet -- bun.lock; then
-            echo "bun.lock is already current"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add bun.lock
-            git commit -m "chore: update automation architect lockfile"
-            git push origin HEAD:feat/automation-ir
-          fi
 
       - name: Build Automation Architect core
         working-directory: packages/core/automation-architect
