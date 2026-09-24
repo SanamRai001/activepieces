@@ -77,6 +77,8 @@ export type ActivepiecesIrCompilerDiagnosticCode =
     | 'UNSUPPORTED_STEP'
     | 'UNSUPPORTED_CONDITION'
     | 'UNSUPPORTED_SHARED_STEP'
+    | 'NON_DOMINATING_REFERENCE'
+    | 'UNSUPPORTED_REFERENCE_SOURCE'
     | 'CREATE_FLOW_FAILED'
     | 'APPLY_OPERATION_FAILED'
     | 'SAFETY_INVARIANT_VIOLATION'
@@ -572,6 +574,40 @@ function validateSupportedGraph(automation: AutomationIrV1): ActivepiecesIrCompi
         }
     }
 
+    if (diagnostics.some((diagnostic) => diagnostic.code === 'UNSUPPORTED_SHARED_STEP')) {
+        return diagnostics
+    }
+
+    const parentByStep = new Map<string, string>()
+    for (const step of automation.steps) {
+        for (const target of targetsForStep(step)) {
+            parentByStep.set(target, step.id)
+        }
+    }
+    const stepById = new Map(automation.steps.map((step) => [step.id, step]))
+
+    for (const step of automation.steps) {
+        for (const reference of collectStepReferences(step)) {
+            const producer = stepById.get(reference.stepId)
+            if (producer !== undefined && producer.type !== 'ACTION' && producer.type !== 'NOTIFICATION') {
+                diagnostics.push({
+                    code: 'UNSUPPORTED_REFERENCE_SOURCE',
+                    message: `Step "${step.id}" references output from "${reference.stepId}" (${producer.type}), which does not have a stable piece-action output contract in Phase 4B.`,
+                    stepId: step.id,
+                })
+                continue
+            }
+
+            if (!isAncestor(reference.stepId, step.id, parentByStep)) {
+                diagnostics.push({
+                    code: 'NON_DOMINATING_REFERENCE',
+                    message: `Step "${step.id}" references "${reference.stepId}", but that step is not guaranteed to execute earlier on the same control-flow path.`,
+                    stepId: step.id,
+                })
+            }
+        }
+    }
+
     return diagnostics
 }
 
@@ -590,6 +626,57 @@ function targetsForStep(step: AutomationStep): string[] {
         case 'APPROVAL_GATE':
             return [step.onApproved, step.onRejected].filter((value): value is string => value !== undefined)
     }
+}
+
+function collectStepReferences(step: AutomationStep): Array<AutomationReference & { source: 'STEP' }> {
+    const values: AutomationValue[] = []
+    switch (step.type) {
+        case 'ACTION':
+        case 'NOTIFICATION':
+        case 'AI_DECISION':
+            values.push(step.input)
+            break
+        case 'CONDITION':
+            values.push(step.expression.left)
+            if (step.expression.right !== undefined) {
+                values.push(step.expression.right)
+            }
+            break
+        case 'APPROVAL_GATE':
+            values.push(step.prompt)
+            break
+    }
+    return values
+        .flatMap((value) => collectReferences(value))
+        .filter((reference): reference is AutomationReference & { source: 'STEP' } => reference.source === 'STEP')
+}
+
+function collectReferences(value: AutomationValue): AutomationReference[] {
+    if (isReference(value)) {
+        return [value]
+    }
+    if (Array.isArray(value)) {
+        return value.flatMap((item) => collectReferences(item))
+    }
+    if (value !== null && typeof value === 'object') {
+        return Object.values(value).flatMap((item) => collectReferences(item))
+    }
+    return []
+}
+
+function isAncestor(
+    candidateAncestorId: string,
+    stepId: string,
+    parentByStep: Map<string, string>,
+): boolean {
+    let current = parentByStep.get(stepId)
+    while (current !== undefined) {
+        if (current === candidateAncestorId) {
+            return true
+        }
+        current = parentByStep.get(current)
+    }
+    return false
 }
 
 function validateInput(params: {
