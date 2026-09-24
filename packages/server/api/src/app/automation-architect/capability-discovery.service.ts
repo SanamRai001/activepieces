@@ -20,6 +20,7 @@ export type ActivepiecesCapabilityDiscoveryIssueCode =
     | 'PIECE_NOT_VISIBLE_OR_MISSING'
     | 'COMPONENT_NOT_FOUND'
     | 'CAPABILITY_ID_TOO_LONG'
+    | 'CONNECTION_STATUS_UNAVAILABLE'
 
 export type ActivepiecesCapabilityDiscoveryIssue = {
     code: ActivepiecesCapabilityDiscoveryIssueCode
@@ -108,27 +109,35 @@ export const createActivepiecesCapabilityDiscoveryService = (
 ) => ({
     async discover(params: ActivepiecesCapabilityDiscoveryParams): Promise<ActivepiecesCapabilityDiscoveryResult> {
         const kinds = params.kinds ?? ['TRIGGER', 'ACTION']
-        const limit = params.limitPerKind ?? DEFAULT_LIMIT_PER_KIND
+        const query = params.query.trim()
+        if (query.length === 0) {
+            throw new Error('Capability discovery query must not be empty.')
+        }
+        const limit = Math.min(Math.max(params.limitPerKind ?? DEFAULT_LIMIT_PER_KIND, 1), 20)
         const searchParams = {
             platformId: params.platformId,
             projectId: params.projectId,
             limit,
         }
 
-        const [triggerResponse, actionResponse, connectedPieceNames] = await Promise.all([
+        const [triggerResponse, actionResponse, connectionState] = await Promise.all([
             kinds.includes('TRIGGER')
-                ? dependencies.searchTriggers(params.query, searchParams)
+                ? dependencies.searchTriggers(query, searchParams)
                 : Promise.resolve<ToolSearchTriggerResponse | undefined>(undefined),
             kinds.includes('ACTION')
-                ? dependencies.searchActions(params.query, searchParams)
+                ? dependencies.searchActions(query, searchParams)
                 : Promise.resolve<ToolSearchActionResponse | undefined>(undefined),
-            dependencies.listConnectedPieceNames({
-                platformId: params.platformId,
-                projectId: params.projectId,
-            }),
+            resolveConnectedPieceNames(dependencies, params),
         ])
 
+        const connectedPieceNames = connectionState.pieceNames
         const issues: ActivepiecesCapabilityDiscoveryIssue[] = []
+        if (connectionState.error !== undefined) {
+            issues.push({
+                code: 'CONNECTION_STATUS_UNAVAILABLE',
+                message: 'Project connection state could not be resolved. Authenticated capabilities are treated as unavailable until connection status is confirmed.',
+            })
+        }
         appendDegradeIssue('trigger', triggerResponse, issues)
         appendDegradeIssue('action', actionResponse, issues)
 
@@ -140,7 +149,6 @@ export const createActivepiecesCapabilityDiscoveryService = (
                 displayName: result.displayName,
                 description: result.oneLineDescription,
                 requiresConnection: result.requiresConnection,
-                connected: result.connected,
             })),
             ...(actionResponse?.results ?? []).map((result) => ({
                 kind: 'ACTION' as const,
@@ -149,7 +157,6 @@ export const createActivepiecesCapabilityDiscoveryService = (
                 displayName: result.displayName,
                 description: result.oneLineDescription,
                 requiresConnection: result.requiresConnection,
-                connected: result.connected,
             })),
         ]
 
@@ -233,7 +240,6 @@ type Candidate = {
     displayName: string
     description: string | undefined
     requiresConnection: boolean
-    connected: boolean | undefined
 }
 
 function createCapabilityId(candidate: Candidate): string {
@@ -314,4 +320,25 @@ async function getPieceCached(params: {
     })
     params.pieceCache.set(params.candidate.pieceName, lookup)
     return lookup
+}
+
+
+async function resolveConnectedPieceNames(
+    dependencies: ActivepiecesCapabilityDiscoveryDependencies,
+    params: ActivepiecesCapabilityDiscoveryParams,
+): Promise<{ pieceNames: ReadonlySet<string>, error?: unknown }> {
+    try {
+        return {
+            pieceNames: await dependencies.listConnectedPieceNames({
+                platformId: params.platformId,
+                projectId: params.projectId,
+            }),
+        }
+    }
+    catch (error) {
+        return {
+            pieceNames: new Set<string>(),
+            error,
+        }
+    }
 }
