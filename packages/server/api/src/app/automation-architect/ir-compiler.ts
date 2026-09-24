@@ -525,10 +525,14 @@ class CompilerContext {
 }
 
 function buildValidatedFlowOperations(trigger: FlowTrigger): FlowOperationRequest[] {
+    const triggerRequest: FlowTrigger = {
+        ...trigger,
+        nextAction: undefined,
+    }
     const operations: FlowOperationRequest[] = [
         FlowOperationRequestSchema.parse({
             type: FlowOperationType.UPDATE_TRIGGER,
-            request: trigger,
+            request: triggerRequest,
         }),
     ]
 
