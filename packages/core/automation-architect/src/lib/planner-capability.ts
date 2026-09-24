@@ -27,6 +27,17 @@ export const PlannerCapabilitySchema = z.object({
         available: true,
     }),
     risk: AutomationRiskSchema.optional(),
-}).strict()
+}).strict().superRefine((capability, ctx) => {
+    if (
+        (capability.kind === 'ACTION' || capability.kind === 'NOTIFICATION')
+        && capability.risk === undefined
+    ) {
+        ctx.addIssue({
+            code: 'custom',
+            path: ['risk'],
+            message: `Capability kind ${capability.kind} requires authoritative risk metadata.`,
+        })
+    }
+})
 
 export type PlannerCapability = z.infer<typeof PlannerCapabilitySchema>
