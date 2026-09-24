@@ -20,6 +20,7 @@ import {
     type FlowTrigger,
     FlowTriggerType,
     RouterExecutionType,
+    StepLocationRelativeToParent,
 } from '@activepieces/shared'
 
 const SCHEDULE_PIECE_NAME = '@activepieces/piece-schedule'
@@ -176,20 +177,12 @@ export const createActivepiecesIrCompiler = (
                 displayName: automation.name,
                 projectId: params.projectId,
             })
-            const importOperation = FlowOperationRequestSchema.parse({
-                type: FlowOperationType.IMPORT_FLOW,
-                request: {
-                    displayName: automation.name,
-                    trigger,
-                    schemaVersion: null,
-                    notes: [],
-                },
-            })
+            const operations = buildValidatedFlowOperations(trigger)
 
             return {
                 status: 'COMPILED',
                 createRequest,
-                operations: [importOperation],
+                operations,
                 stepNameById,
                 diagnostics: [],
             }
@@ -528,6 +521,68 @@ class CompilerContext {
             throw compilerError('INVALID_IR', `No Activepieces step name allocated for "${stepId}".`, stepId)
         }
         return name
+    }
+}
+
+function buildValidatedFlowOperations(trigger: FlowTrigger): FlowOperationRequest[] {
+    const operations: FlowOperationRequest[] = [
+        FlowOperationRequestSchema.parse({
+            type: FlowOperationType.UPDATE_TRIGGER,
+            request: trigger,
+        }),
+    ]
+
+    if (trigger.nextAction !== undefined) {
+        appendActionOperations({
+            parentStep: trigger.name,
+            location: StepLocationRelativeToParent.AFTER,
+            action: trigger.nextAction,
+            operations,
+        })
+    }
+
+    return operations
+}
+
+function appendActionOperations(params: {
+    parentStep: string
+    location: StepLocationRelativeToParent
+    branchIndex?: number
+    action: FlowAction
+    operations: FlowOperationRequest[]
+}): void {
+    params.operations.push(FlowOperationRequestSchema.parse({
+        type: FlowOperationType.ADD_ACTION,
+        request: {
+            parentStep: params.parentStep,
+            stepLocationRelativeToParent: params.location,
+            ...(params.branchIndex !== undefined ? { branchIndex: params.branchIndex } : {}),
+            action: params.action,
+        },
+    }))
+
+    if (params.action.type === FlowActionType.ROUTER || params.action.type === FlowActionType.AI_ROUTER) {
+        params.action.children.forEach((child, branchIndex) => {
+            if (child === null) {
+                return
+            }
+            appendActionOperations({
+                parentStep: params.action.name,
+                location: StepLocationRelativeToParent.INSIDE_BRANCH,
+                branchIndex,
+                action: child,
+                operations: params.operations,
+            })
+        })
+    }
+
+    if (params.action.nextAction !== undefined) {
+        appendActionOperations({
+            parentStep: params.action.name,
+            location: StepLocationRelativeToParent.AFTER,
+            action: params.action.nextAction,
+            operations: params.operations,
+        })
     }
 }
 
