@@ -5,7 +5,7 @@ import { PlannerCapabilitySchema } from './planner-capability'
 
 export const AutomationPlannerInputSchema = z.object({
     goal: z.string().trim().min(1).max(8000),
-    capabilities: z.array(PlannerCapabilitySchema).min(1).max(1000),
+    capabilities: z.array(PlannerCapabilitySchema).max(1000),
     policy: AutomationPolicySchema,
     constraints: z.array(z.string().trim().min(1).max(1000)).max(50).default([]),
 }).strict().superRefine((input, ctx) => {
