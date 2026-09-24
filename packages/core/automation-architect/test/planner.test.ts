@@ -401,8 +401,44 @@ describe('NaturalLanguageAutomationPlanner', () => {
             },
         }))
 
-        const result = await planner.plan(baseInput)
+        const result = await planner.plan({
+            ...baseInput,
+            capabilities: [],
+        })
 
         expect(result.status).toBe('READY')
+    })
+
+    it('rejects action capabilities without authoritative risk metadata', async () => {
+        let called = false
+        const model: AutomationPlannerModel = {
+            async generatePlan(): Promise<unknown> {
+                called = true
+                return {
+                    status: 'READY',
+                    automation: validAutomation,
+                    explanation: 'Should not be reached.',
+                }
+            },
+        }
+
+        const planner = new NaturalLanguageAutomationPlanner(model)
+        const result = await planner.plan({
+            ...baseInput,
+            capabilities: [{
+                id: 'unsafe.unknown',
+                kind: 'ACTION',
+                name: 'Unknown action',
+                description: 'An action without classified risk.',
+                connection: {
+                    required: false,
+                    available: true,
+                },
+            }],
+        })
+
+        expect(result.status).toBe('FAILED')
+        expect(result.diagnostics[0]?.code).toBe('INVALID_INPUT')
+        expect(called).toBe(false)
     })
 })
