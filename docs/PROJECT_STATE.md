@@ -72,13 +72,13 @@ A temporary fork-specific GitHub Actions workflow was used because upstream `.gi
 
 The temporary workflow was removed after verification.
 
-Final verification run:
+Final Phase 2 verification:
 
-- Workflow: `Automation IR Verification`
-- Run ID: `35970151994`
-- Head commit verified: `08a34ecb6eb0c1afca3565c128008a8713432d55`
-- `bun install`: PASS
-- Lockfile check: PASS — `bun.lock is already current`
+- Workflow: `Automation Architect Base Verification`
+- Run ID: `36017251158`
+- Verified source/package head: `f69c384ec48d200c876771cbea3889142276611a`
+- filtered frozen dependency install: PASS
+- committed lockfile stability: PASS
 - TypeScript build: PASS
 - ESLint: PASS
 - Vitest: PASS
@@ -86,11 +86,12 @@ Final verification run:
   - 18 tests passed
   - 0 failed
 
-A prior verification run intentionally exposed and helped fix:
+Verification history exposed and fixed:
 - missing `bun.lock` workspace metadata;
-- TypeScript `TS4111` under `noPropertyAccessFromIndexSignature`.
+- TypeScript `TS4111` under `noPropertyAccessFromIndexSignature`;
+- missing explicit `tslib` runtime dependency when the package is installed in isolation.
 
-Both are resolved in the verified head.
+`tslib@2.6.2` is now declared in `@activepieces/automation-architect`, and the lockfile is current. Temporary fork-only verification workflows were removed after the green run.
 
 ## Decisions
 
