@@ -27,7 +27,7 @@ export type AutomationValue =
 
 export const AutomationValueSchema: z.ZodType<AutomationValue> = z.lazy(() => {
     const plainObjectSchema = z.record(z.string(), AutomationValueSchema).superRefine((value, ctx) => {
-        if (value.kind === 'REFERENCE') {
+        if (value['kind'] === 'REFERENCE') {
             ctx.addIssue({
                 code: 'custom',
                 path: ['kind'],
