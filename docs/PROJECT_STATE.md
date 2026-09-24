@@ -14,49 +14,49 @@ Build an **Automation Architect** layer on top of the Activepieces Community Edi
 
 ## Completed phase
 
-**Phase 0 — Foundation**
+**Phase 1 — Runtime Integration Map**
 
 ### Changes
 
-- Audited the fork structure and current build scripts.
-- Confirmed the repo uses a Bun/Turborepo TypeScript monorepo.
-- Confirmed existing Activepieces capabilities already cover:
-  - flows;
-  - loops/branches/retries;
-  - agents;
-  - piece tools;
-  - flow tools;
-  - MCP tools;
-  - human-in-the-loop primitives;
-  - AI routing;
-  - execution workers and a visual builder.
-- Confirmed license boundary:
-  - Community Edition code is generally MIT;
-  - `packages/ee/` is Enterprise-licensed;
-  - `packages/server/api/src/app/ee` is Enterprise-licensed.
-- Added `docs/AUTOMATION_ARCHITECT.md` defining:
-  - product problem and differentiation;
-  - architecture boundary;
-  - Automation IR;
-  - planner;
-  - capability discovery;
-  - risk/approval engine;
-  - Activepieces compiler;
-  - validator/simulator;
-  - runtime supervisor;
-  - coding-project supervision as the first vertical;
-  - phased implementation roadmap;
-  - upstream-sync strategy.
+- Completed Phase 0 foundation inspection and product-boundary documentation.
+- Added `docs/AUTOMATION_ARCHITECT_INTEGRATION_MAP.md`.
+- Traced Activepieces' typed flow model in `@activepieces/core-execution`.
+- Confirmed `FlowOperationRequest` is the canonical mutation contract used by the web/API/server stack.
+- Traced flow creation and update through:
+  - `flowService.create/update`;
+  - `flowVersionService.applyOperation`;
+  - `flowVersionValidationUtil.prepareRequest`;
+  - `flowOperations.apply`.
+- Confirmed generated flows can remain normal Activepieces drafts and inherit existing versioning/validation.
+- Identified capability discovery surfaces:
+  - `toolSearchService.searchActions/searchTriggers`;
+  - `pieceMetadataService`;
+  - connection metadata;
+  - MCP piece-property/schema resolution as a reference implementation.
+- Audited existing AI-facing flow-builder tools including:
+  - `ap_build_flow`;
+  - `ap_create_flow`;
+  - `ap_update_trigger`;
+  - `ap_add_step`;
+  - `ap_add_branch`;
+  - `ap_validate_step_config`;
+  - `ap_validate_flow`;
+  - `ap_test_flow`.
+- Confirmed Activepieces can already build many flows through MCP, so Automation Architect must differentiate through explicit process understanding, provider-neutral IR, safety/policy analysis, explainability and supervised lifecycle—not merely LLM tool calling.
+- Chosen compiler direction: compile Automation IR into typed Activepieces flow operations instead of writing raw FlowVersion/database records or parsing MCP text.
+- Identified two reusable behaviors currently living under MCP paths that should be extracted rather than duplicated later:
+  - structural flow validation;
+  - flow-test orchestration.
 
 ## Verification
 
-- Fork metadata verified through GitHub.
-- Push/admin permission verified.
-- `main` baseline verified at `17e2ac0b01797f8472e781122a396c5d07acc974`.
-- Foundation branch created successfully.
-- Documentation-only phase: no runtime/source code changed, so build/test execution is not required for Phase 0.
-- Branch documentation was re-read after creation and matches the intended Phase 0 scope.
-- Phase 0 is closed; no runtime/source behavior was changed.
+- Integration map was derived from current fork source, not documentation assumptions.
+- Flow model and operation schemas were inspected from `packages/core/execution`.
+- Server mutation path was verified through the flow and flow-version services.
+- Piece/tool discovery paths were verified from the current server implementation.
+- MCP builder, validation and test-tool implementations were inspected directly.
+- No runtime/source behavior changed in Phase 1; only documentation was added/updated, so build/test execution is not required for this phase.
+- The integration-map document must be re-read from the branch before Phase 1 is closed.
 
 ## Decisions
 
@@ -81,16 +81,30 @@ Build an **Automation Architect** layer on top of the Activepieces Community Edi
 
 ## Next phase
 
-**Phase 1 — Runtime integration map**
+**Phase 2 — Automation IR**
 
-Inspect and document the smallest stable Activepieces surfaces needed to turn Automation IR into a draft flow:
+Implement the first provider-neutral, versioned TypeScript schema for automation plans.
 
-1. flow schema/types;
-2. flow create/update lifecycle;
-3. piece/action/trigger metadata discovery;
-4. existing flow validation;
-5. MCP flow-building tools;
-6. execution/dry-run entry points;
-7. server/web boundaries that can be reused without invasive changes.
+Initial supported concepts:
 
-Deliverable: an integration map plus recommended extension points. Avoid feature implementation until that map is complete.
+1. trigger:
+   - manual;
+   - schedule;
+   - webhook/event capability;
+2. action;
+3. deterministic condition;
+4. AI decision;
+5. approval gate;
+6. notification;
+7. references between step outputs and later inputs;
+8. explicit policy/risk metadata.
+
+Constraints:
+
+- no server services or Activepieces-specific flow operations inside the IR package;
+- use Zod schemas plus inferred TypeScript types;
+- include focused unit tests;
+- keep the first schema deliberately small;
+- define versioning/migration expectations before adding compiler code.
+
+Deliverable: a standalone, tested Automation IR core package that Phase 3 can use as the planner output contract.
