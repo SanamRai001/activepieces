@@ -1,9 +1,9 @@
 import { ActionClassification } from '@activepieces/pieces-framework'
 import { describe, expect, it } from 'vitest'
 import {
-    ActivepiecesCapabilityDiscoveryDependencies,
+    type ActivepiecesCapabilityDiscoveryDependencies,
     createActivepiecesCapabilityDiscoveryService,
-} from '../../../src/app/automation-architect/capability-discovery.service'
+} from '../../../src/app/automation-architect/capability-discovery'
 
 const project = {
     platformId: 'platform-1',
