@@ -25,17 +25,27 @@ export type AutomationValue =
     | AutomationValue[]
     | { [key: string]: AutomationValue }
 
-export const AutomationValueSchema: z.ZodType<AutomationValue> = z.lazy(() =>
-    z.union([
+export const AutomationValueSchema: z.ZodType<AutomationValue> = z.lazy(() => {
+    const plainObjectSchema = z.record(z.string(), AutomationValueSchema).superRefine((value, ctx) => {
+        if (value.kind === 'REFERENCE') {
+            ctx.addIssue({
+                code: 'custom',
+                path: ['kind'],
+                message: 'Objects with kind="REFERENCE" must match the AutomationReference schema.',
+            })
+        }
+    })
+
+    return z.union([
         z.string(),
         z.number(),
         z.boolean(),
         z.null(),
         AutomationReferenceSchema,
         z.array(AutomationValueSchema),
-        z.record(z.string(), AutomationValueSchema),
-    ]),
-)
+        plainObjectSchema,
+    ])
+})
 
 export const AutomationInputSchema = z.record(z.string(), AutomationValueSchema)
 
