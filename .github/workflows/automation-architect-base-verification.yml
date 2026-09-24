@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: automation-architect-base-verification
+  cancel-in-progress: true
+
 jobs:
   verify:
     if: github.actor != 'github-actions[bot]'
@@ -27,7 +31,10 @@ jobs:
           bun-version: 1.4.0
 
       - name: Install package dependencies
-        run: bun install --filter @activepieces/automation-architect
+        run: bun install --frozen-lockfile --filter @activepieces/automation-architect
+
+      - name: Install repository lint tooling
+        run: bun add --no-save --dev eslint@8.57.0 @typescript-eslint/eslint-plugin@7.18.0 @typescript-eslint/parser@7.18.0 eslint-plugin-unused-imports@4.4.1
 
       - name: Commit lockfile when needed
         run: |
