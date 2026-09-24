@@ -85,7 +85,10 @@ export class NaturalLanguageAutomationPlanner {
         }
 
         const grounding = groundAutomation(
-            parsedAutomation.data,
+            {
+                ...parsedAutomation.data,
+                goal: parsedInput.data.goal,
+            },
             parsedInput.data,
         )
 
