@@ -86,6 +86,7 @@ describe('Automation draft validation service', () => {
                 status: FlowStatus.DISABLED,
                 publishedVersionId: null,
                 version: {
+                    id: 'version-1',
                     state: FlowVersionState.DRAFT,
                     trigger: trigger(action(false)),
                 },
@@ -143,6 +144,7 @@ describe('Automation draft validation service', () => {
                 status,
                 publishedVersionId,
                 version: {
+                    id: 'version-1',
                     state: versionState,
                     trigger: trigger(action()),
                 },
