@@ -1,0 +1,58 @@
+name: Draft Simulation Verification
+
+on:
+  push:
+    branches:
+      - feat/draft-safe-simulation
+
+permissions:
+  contents: read
+
+concurrency:
+  group: draft-simulation-verification
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feat/draft-safe-simulation
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: Install repository dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build API with workspace dependencies
+        run: bunx turbo run build --filter=api
+
+      - name: Lint simulation files
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: |
+          bunx eslint \
+            'packages/server/api/src/app/flows/testing/flow-test-orchestration.service.ts' \
+            'packages/server/api/src/app/automation-architect/draft-simulation.service.ts' \
+            'packages/server/api/src/app/automation-architect/draft-validation.service.ts' \
+            'packages/server/api/src/app/mcp/tools/flow-run-utils.ts' \
+            'packages/server/api/test/unit/app/flows/testing/flow-test-orchestration.service.test.ts' \
+            'packages/server/api/test/unit/automation-architect/draft-simulation.service.test.ts' \
+            'packages/server/api/test/unit/automation-architect/draft-validation.service.test.ts'
+
+      - name: Test safe simulation and regressions
+        working-directory: packages/server/api
+        run: |
+          bunx vitest run \
+            test/unit/app/flows/testing/flow-test-orchestration.service.test.ts \
+            test/unit/automation-architect/draft-simulation.service.test.ts \
+            test/unit/automation-architect/draft-validation.service.test.ts \
+            test/unit/app/mcp/flow-run-utils.test.ts
