@@ -124,6 +124,29 @@ describe('Automation draft simulation service', () => {
         expect(result.runStatus).toBe(FlowRunStatus.RUNNING)
     })
 
+    it('maps a terminal engine timeout to TEST_TIMEOUT', async () => {
+        const service = createAutomationDraftSimulationService(dependencies({
+            testDraft: async () => ({
+                status: 'TEST_COMPLETED',
+                flowId: 'flow-1',
+                flowVersionId: 'version-1',
+                runId: 'run-1',
+                runStatus: FlowRunStatus.TIMEOUT,
+                failedStepName: 'step_1',
+                triggerDataSource: 'NO_TRIGGER_SAMPLE',
+                usedMockTriggerData: false,
+            }),
+        }))
+
+        const result = await service.simulate({
+            flowId: 'flow-1',
+            projectId: 'project-1',
+        })
+
+        expect(result.status).toBe('TEST_TIMEOUT')
+        expect(result.runStatus).toBe(FlowRunStatus.TIMEOUT)
+    })
+
     it('does not test a draft that needs configuration', async () => {
         let tested = false
         const service = createAutomationDraftSimulationService(dependencies({
