@@ -121,7 +121,7 @@ describe('validateFlowStructure', () => {
         const trigger = configuredTrigger(pieceAction({
             name: 'step_1',
             input: {
-                value: "{{missing_step['output']['id']}}",
+                value: '{{missing_step[\'output\'][\'id\']}}',
             },
         }))
 
@@ -141,7 +141,7 @@ describe('validateFlowStructure', () => {
         const step1 = pieceAction({
             name: 'step_1',
             input: {
-                value: "{{step_2['output']['id']}}",
+                value: '{{step_2[\'output\'][\'id\']}}',
             },
             nextAction: step2,
         })
@@ -163,7 +163,7 @@ describe('validateFlowStructure', () => {
         const trigger = configuredTrigger(pieceAction({
             name: 'step_1',
             input: {
-                auth: "{{connections['github-main']}}",
+                auth: '{{connections[\'github-main\']}}',
             },
         }))
 
@@ -186,7 +186,7 @@ describe('validateFlowStructure', () => {
                         branchName: 'Matches',
                         branchType: BranchExecutionType.CONDITION,
                         conditions: [[{
-                            firstValue: "{{trigger['output']['value']}}",
+                            firstValue: '{{trigger[\'output\'][\'value\']}}',
                             secondValue: 'yes',
                             operator: BranchOperator.TEXT_EXACTLY_MATCHES,
                         }]],
