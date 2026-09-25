@@ -46,6 +46,4 @@ jobs:
 
       - name: Test Automation Architect compiler
         working-directory: packages/server/api
-        run: bunx vitest run \
-          test/unit/automation-architect/ir-compiler.test.ts \
-          test/unit/automation-architect/capability-discovery.service.test.ts
+        run: bunx vitest run test/unit/automation-architect/ir-compiler.test.ts test/unit/automation-architect/capability-discovery.service.test.ts
