@@ -84,7 +84,7 @@ export const automationDraftValidationService = (log: FastifyBaseLogger) => {
             return {
                 id: flow.id,
                 status: flow.status,
-                publishedVersionId: flow.publishedVersionId,
+                publishedVersionId: flow.publishedVersionId ?? null,
                 version: {
                     state: flow.version.state,
                     trigger: flow.version.trigger,
