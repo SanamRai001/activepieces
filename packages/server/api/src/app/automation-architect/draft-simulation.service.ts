@@ -169,10 +169,20 @@ function mapTestResult(
                 ...common,
             }
         case 'TEST_COMPLETED':
+            if (test.runStatus === FlowRunStatus.SUCCEEDED) {
+                return {
+                    status: 'TEST_SUCCEEDED',
+                    ...common,
+                }
+            }
+            if (test.runStatus === FlowRunStatus.TIMEOUT) {
+                return {
+                    status: 'TEST_TIMEOUT',
+                    ...common,
+                }
+            }
             return {
-                status: test.runStatus === FlowRunStatus.SUCCEEDED
-                    ? 'TEST_SUCCEEDED'
-                    : 'TEST_FAILED',
+                status: 'TEST_FAILED',
                 ...common,
             }
     }
