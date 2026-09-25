@@ -1,21 +1,18 @@
 import { FlowId, formatPieceError, isNil, isObject, omit, ProjectId, tryCatch, tryCatchSync, tryParseFriendlyPieceError, UserId } from '@activepieces/core-utils'
 import { largeResultUtils, MAX_TOOL_RESULT_BYTES } from '@activepieces/server-utils'
-import { CodeAction, createKeyForFormInput, FlowActionType, FlowOperationType, FlowRun, FlowRunStatus, flowStructureUtil, FlowTriggerType, isFlowRunStateTerminal, McpToolResult, PieceAction, RunEnvironment, SampleDataFileType, Step, StepOutputStatus, UpdateActionRequest } from '@activepieces/shared'
+import { CodeAction, createKeyForFormInput, FlowActionType, FlowRun, FlowRunStatus, flowStructureUtil, FlowTriggerType, isFlowRunStateTerminal, McpToolResult, PieceAction, RunEnvironment, Step, StepOutputStatus, UpdateActionRequest } from '@activepieces/shared'
 import dayjs from 'dayjs'
 import { FastifyBaseLogger } from 'fastify'
 import { ActionRunResult, actionRunService } from '../../action-run/action-run.service'
-import { flowService } from '../../flows/flow/flow.service'
-import { flowRunService, isOutsideRetentionWindow } from '../../flows/flow-run/flow-run-service'
-import { sampleDataService } from '../../flows/step-run/sample-data.service'
+import { isOutsideRetentionWindow } from '../../flows/flow-run/flow-run-service'
 import { system } from '../../helper/system/system'
 import { AppSystemProp } from '../../helper/system/system-props'
 import { projectService } from '../../project/project-service'
+import { flowTestOrchestrationService } from '../../flows/testing/flow-test-orchestration.service'
 import { mcpUtils } from './mcp-utils'
 
 const ACTION_RUN_STEP_NAME = 'step_1'
 
-const POLL_INTERVAL_MS = 2000
-const MAX_WAIT_MS = 120_000
 // The actionable part of an API error (which field, what format, allowed values) often lands past
 // 300 chars, so the agent never saw it. Keep the head but allow enough to carry the real guidance.
 const ERROR_SUMMARY_MAX_LENGTH = 900
@@ -28,76 +25,80 @@ export async function executeFlowTest({ flowId, projectId, userId, stepName, tri
     triggerTestData?: Record<string, unknown>
     log: FastifyBaseLogger
 }): Promise<McpToolResult> {
-    let flow = await flowService(log).getOnePopulated({ id: flowId, projectId })
-    if (isNil(flow)) {
-        return { content: [{ type: 'text', text: '❌ Flow not found' }] }
-    }
-
-    if (!flow.version.trigger.valid) {
-        return { content: [{ type: 'text', text: '❌ Flow trigger is not configured. Use ap_update_trigger to set up the trigger before testing.' }] }
-    }
-
-    const usedMockTriggerData = !isNil(triggerTestData)
-    let warning = ''
-    if (stepName) {
-        const step = flowStructureUtil.getStep(stepName, flow.version.trigger)
-        if (isNil(step)) {
-            const allSteps = flowStructureUtil.getAllSteps(flow.version.trigger).map(s => s.name).join(', ')
-            return { content: [{ type: 'text', text: `❌ Step "${stepName}" not found. Available steps: ${allSteps}` }] }
-        }
-    }
-    else {
-        const invalidSteps = flowStructureUtil.getAllSteps(flow.version.trigger)
-            .filter(s => !s.valid && !flowStructureUtil.isTrigger(s.type))
-            .map(s => s.displayName)
-        if (invalidSteps.length > 0) {
-            warning = `⚠️ These steps are not fully configured: ${invalidSteps.join(', ')}. Results may be incomplete.\n\n`
-        }
-    }
-
-    if (triggerTestData) {
-        const project = await projectService(log).getOneOrThrow(projectId)
-        const sampleDataSettings = await sampleDataService(log).saveSampleDataFileIdsInStep({
-            projectId,
-            flowVersionId: flow.version.id,
-            stepName: flow.version.trigger.name,
-            payload: triggerTestData,
-            type: SampleDataFileType.OUTPUT,
-        })
-        const updatedFlow = await flowService(log).update({
-            id: flow.id,
-            projectId,
-            userId,
-            previousFlow: flow,
-            platformId: project.platformId,
-            operation: {
-                type: FlowOperationType.UPDATE_SAMPLE_DATA_INFO,
-                request: { stepName: flow.version.trigger.name, sampleDataSettings },
-            },
-        })
-        flow = updatedFlow
-        warning += '⚠️ This test ran on mock trigger data you supplied, not a real trigger event. A passing test here does NOT prove the live flow works: if the real trigger payload uses different field names or casing than your mock, downstream steps will read empty values in production. Verify your mock keys match a real sample (e.g. trigger the flow once for real, or check the trigger sample shape). When reporting this to the user, describe it as "tested with sample data" — NEVER claim it was "verified with real runs".\n\n'
-        warning += buildTriggerShapeHint(flow.version.trigger)
-    }
-
-    const flowRun = await flowRunService(log).test({
+    const result = await flowTestOrchestrationService(log).test({
+        flowId,
         projectId,
-        flowVersionId: flow.version.id,
-        stepNameToTest: stepName,
+        userId,
+        stepName,
+        triggerTestData,
     })
 
-    const completedRun = await pollForRunCompletion(log, flowRun.id, projectId)
+    switch (result.status) {
+        case 'FLOW_NOT_FOUND':
+            return { content: [{ type: 'text', text: '❌ Flow not found' }] }
+        case 'TRIGGER_NOT_CONFIGURED':
+            return {
+                content: [{
+                    type: 'text',
+                    text: '❌ Flow trigger is not configured. Use ap_update_trigger to set up the trigger before testing.',
+                }],
+            }
+        case 'STEP_NOT_FOUND':
+            return {
+                content: [{
+                    type: 'text',
+                    text: `❌ Step "${stepName}" not found. Available steps: ${(result.availableStepNames ?? []).join(', ')}`,
+                }],
+            }
+        case 'FLOW_VERSION_CHANGED':
+            return {
+                content: [{
+                    type: 'text',
+                    text: '❌ Flow changed while preparing the test. Re-run ap_test_flow against the latest draft.',
+                }],
+                isError: true,
+            }
+        case 'UNSAFE_TEST_RUN':
+            return {
+                content: [{
+                    type: 'text',
+                    text: '❌ Test safety check failed because the runtime did not return a TESTING-environment run.',
+                }],
+                isError: true,
+            }
+        case 'TEST_TIMEOUT':
+            return {
+                content: [{
+                    type: 'text',
+                    text: `⏳ Test still running after 120s. Run ID: ${result.runId} (status: ${result.runStatus}). Use ap_get_run to check results later.`,
+                }],
+                structuredContent: {
+                    usedMockTriggerData: result.usedMockTriggerData ?? false,
+                    triggerDataSource: result.triggerDataSource,
+                    runId: result.runId,
+                    status: result.runStatus,
+                    failedStepName: result.failedStepName ?? null,
+                },
+            }
+        case 'TEST_COMPLETED':
+            break
+    }
 
-    if (!isFlowRunStateTerminal({ status: completedRun.status, ignoreInternalError: false })) {
+    const completedRun = result.run
+    if (isNil(completedRun)) {
         return {
             content: [{
                 type: 'text',
-                text: `⏳ Test still running after 120s. Run ID: ${completedRun.id} (status: ${completedRun.status}). Use ap_get_run to check results later.`,
+                text: '❌ Test completed without run details.',
             }],
+            isError: true,
         }
     }
 
-    if (completedRun.status === FlowRunStatus.INTERNAL_ERROR && isNil(completedRun.steps)) {
+    if (
+        completedRun.status === FlowRunStatus.INTERNAL_ERROR
+        && isNil(completedRun.steps)
+    ) {
         return {
             content: [{
                 type: 'text',
@@ -106,10 +107,24 @@ export async function executeFlowTest({ flowId, projectId, userId, stepName, tri
         }
     }
 
+    let warning = ''
+    const invalidSteps = result.invalidStepDisplayNames ?? []
+    if (invalidSteps.length > 0) {
+        warning += `⚠️ These steps are not fully configured: ${invalidSteps.join(', ')}. Results may be incomplete.\n\n`
+    }
+
+    if (result.triggerDataSource === 'USER_SUPPLIED_MOCK') {
+        warning += '⚠️ This test ran on mock trigger data you supplied, not a real trigger event. A passing test here does NOT prove the live flow works: if the real trigger payload uses different field names or casing than your mock, downstream steps will read empty values in production. Verify your mock keys match a real sample (e.g. trigger the flow once for real, or check the trigger sample shape). When reporting this to the user, describe it as "tested with sample data" — NEVER claim it was "verified with real runs".\n\n'
+        if (result.trigger !== undefined) {
+            warning += buildTriggerShapeHint(result.trigger)
+        }
+    }
+
     return {
         content: [{ type: 'text', text: warning + formatRunResult(completedRun) }],
         structuredContent: {
-            usedMockTriggerData,
+            usedMockTriggerData: result.usedMockTriggerData ?? false,
+            triggerDataSource: result.triggerDataSource,
             runId: completedRun.id,
             status: completedRun.status,
             failedStepName: completedRun.failedStep?.name ?? null,
@@ -490,18 +505,6 @@ export function formatPieceActionRunResult({ outcome, runId, displayName, action
         structuredContent: { errorSummary: summary },
         isError: true,
     }
-}
-
-export async function pollForRunCompletion(log: FastifyBaseLogger, runId: string, projectId: string): Promise<FlowRun> {
-    const start = Date.now()
-    while (Date.now() - start < MAX_WAIT_MS) {
-        const run = await flowRunService(log).getOnePopulatedOrThrow({ id: runId, projectId })
-        if (isFlowRunStateTerminal({ status: run.status, ignoreInternalError: false })) {
-            return run
-        }
-        await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS))
-    }
-    return flowRunService(log).getOnePopulatedOrThrow({ id: runId, projectId })
 }
 
 export function formatRunResult(run: FlowRun): string {
