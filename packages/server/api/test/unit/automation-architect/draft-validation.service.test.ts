@@ -56,6 +56,7 @@ function dependencies(overrides: Partial<AutomationDraftValidationDependencies> 
             status: FlowStatus.DISABLED,
             publishedVersionId: null,
             version: {
+                id: 'version-1',
                 state: FlowVersionState.DRAFT,
                 trigger: trigger(action()),
             },
@@ -74,6 +75,7 @@ describe('Automation draft validation service', () => {
         })
 
         expect(result.status).toBe('VALIDATED_DRAFT')
+        expect(result.flowVersionId).toBe('version-1')
         expect(result.structural?.issues).toEqual([])
     })
 
