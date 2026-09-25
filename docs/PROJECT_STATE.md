@@ -121,6 +121,8 @@ The compiler:
 - never chooses a connection implicitly;
 - rejects missing bindings;
 - rejects unsafe external IDs;
+- verifies the external ID belongs to an **active connection in the current project for the same piece**;
+- rejects stale/missing/mismatched bindings with `CONNECTION_BINDING_NOT_FOUND_OR_MISMATCHED`;
 - injects Activepieces connection expressions deterministically.
 
 ### Input preflight
@@ -157,7 +159,16 @@ The schedule piece itself is project-scoped and version-resolved rather than ver
 
 ### Manual triggers
 
-`MANUAL` remains explicitly unsupported until a safe runtime mapping exists.
+`MANUAL` compiles through:
+
+```text
+@activepieces/piece-manual-trigger
+→ manual_trigger
+```
+
+The piece is project-scoped and version-resolved.
+
+Because the manual trigger has no runtime payload, any step that references manual-trigger output is rejected with `UNSUPPORTED_REFERENCE_SOURCE`.
 
 ### Piece actions and notifications
 
@@ -383,8 +394,8 @@ There is no activation API in Phase 4B.
 ### Final Phase 4B verification
 
 - Workflow: `IR Compiler Verification`
-- Run ID: `36033591834`
-- Verified implementation head: `3551ec2ba83308a6827445db7d384a4a068a6bea`
+- Run ID: `36152686107`
+- Verified implementation head: `0a6dec42fbcd27f9901890586bb59c1ad1158105`
 - Repository install with frozen lockfile: **PASS**
 - API build through Turborepo dependency graph: **PASS**
   - **17/17 build tasks successful**
@@ -393,13 +404,19 @@ There is no activation API in Phase 4B.
   - 5 non-blocking explicit-return-type warnings
 - Focused Vitest: **PASS**
   - 2 test files passed
-  - **33 tests passed**
+  - **36 tests passed**
   - 0 failed
 
-The verified test set includes:
+The final verified set contains:
 
-- IR compiler tests;
-- capability discovery adapter tests.
+- **19 IR compiler tests**;
+- **17 capability discovery adapter tests**.
+
+The latest coverage includes:
+
+- safe manual-trigger compilation;
+- rejection of manual-trigger output references;
+- validation that a connection binding is active, project-scoped, and belongs to the expected piece.
 
 The temporary fork-only IR compiler verification workflow was removed after the green run.
 
@@ -483,7 +500,7 @@ Final verification:
   - real trigger evidence;
   - mock/sample trigger data.
 - AI decisions and approval gates still need explicit runtime semantics.
-- Manual triggers still need an explicit mapping.
+- Manual-trigger flows cannot reference trigger payload because the built-in manual trigger carries no data.
 - Branch joins need an IR/runtime contract before support.
 - Schedule natural-language normalization remains a planner concern.
 - No production model-provider adapter is wired yet.
