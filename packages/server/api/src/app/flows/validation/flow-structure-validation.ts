@@ -28,7 +28,7 @@ export function validateFlowStructure({ trigger }: { trigger: Step }): FlowStruc
             category: 'step_validity',
             severity: 'error',
             stepName: 'trigger',
-            message: 'Trigger is not configured.',
+            message: 'Trigger is not configured (use ap_update_trigger).',
         })
     }
 
@@ -53,7 +53,7 @@ export function validateFlowStructure({ trigger }: { trigger: Step }): FlowStruc
                     category: 'step_validity',
                     severity: 'error',
                     stepName: step.name,
-                    message: `"${step.displayName}" is invalid.`,
+                    message: `"${step.displayName}" is invalid (use ap_update_step to fix).`,
                 })
             }
         }
@@ -102,7 +102,7 @@ export function validateFlowStructure({ trigger }: { trigger: Step }): FlowStruc
                     severity: isFallback ? 'info' : 'warning',
                     stepName: step.name,
                     message: isFallback
-                        ? `"${step.displayName}" has an empty fallback branch: "${branchName}". This is acceptable when the unmatched case intentionally does nothing.`
+                        ? `"${step.displayName}" has an empty fallback branch: "${branchName}". This is fine if the unmatched case intentionally does nothing.`
                         : `"${step.displayName}" has an empty branch: "${branchName}".`,
                 })
             }
