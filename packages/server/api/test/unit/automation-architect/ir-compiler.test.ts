@@ -591,10 +591,7 @@ describe('Activepieces IR compiler', () => {
         const compiler = createActivepiecesIrCompiler({
             ...dependencies(),
             validateConnectionBinding: async ({ externalId, pieceName }) =>
-                externalId === 'github-main'
-                && pieceName === '@activepieces/piece-github'
-                ? false
-                : true,
+                !(externalId === 'github-main' && pieceName === '@activepieces/piece-github'),
         })
         const result = await compiler.compile({
             automation: baseEventAutomation(),
