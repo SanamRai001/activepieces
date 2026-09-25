@@ -126,9 +126,16 @@ The schedule piece is re-resolved like any other piece rather than relying on a 
 
 #### MANUAL
 
-Intentionally unsupported in Phase 4B.
+`MANUAL` compiles through Activepieces' built-in manual-trigger piece:
 
-There is no dedicated safe manual-trigger mapping in the current compiler contract, so the compiler returns `UNSUPPORTED_TRIGGER` instead of approximating one.
+```text
+@activepieces/piece-manual-trigger
+manual_trigger
+```
+
+The piece is resolved in current project scope and its exact visible version is used.
+
+Because this manual trigger carries no runtime payload, any IR step that references `TRIGGER` output in a manual-trigger flow is rejected with `UNSUPPORTED_REFERENCE_SOURCE` rather than compiling a broken expression.
 
 ### Steps
 
@@ -183,6 +190,8 @@ For a component with `requireAuth=true`:
 - a binding is mandatory;
 - the compiler never picks one implicitly;
 - unsafe external IDs are rejected;
+- the binding must resolve to an **active connection in the current project for the same piece**;
+- stale, missing, or mismatched bindings are rejected with `CONNECTION_BINDING_NOT_FOUND_OR_MISMATCHED`;
 - the generated input contains:
 
 ```text
@@ -434,8 +443,8 @@ Phase 4B contains no activation or publish API.
 Final Phase 4B verification:
 
 - workflow: `IR Compiler Verification`;
-- run: `36033591834`;
-- verified implementation head: `3551ec2ba83308a6827445db7d384a4a068a6bea`;
+- run: `36152686107`;
+- verified implementation head: `0a6dec42fbcd27f9901890586bb59c1ad1158105`;
 - repository install with frozen lockfile: PASS;
 - API build through Turborepo: PASS;
   - 17/17 build tasks successful;
@@ -444,8 +453,15 @@ Final Phase 4B verification:
   - 5 non-blocking explicit-return-type warnings;
 - focused Vitest: PASS;
   - 2 test files passed;
-  - 33 tests passed;
+  - **36 tests passed**;
   - 0 failed.
+
+The final test set includes:
+
+- 19 IR compiler tests;
+- 17 capability-discovery tests.
+
+The latest compiler coverage includes safe manual-trigger compilation and active project connection-binding validation.
 
 The temporary fork-only verification workflow was removed after the green run.
 
@@ -459,7 +475,6 @@ Phase 4B does not:
 - resolve dynamic dropdown/property values;
 - compile AI decisions;
 - compile approval gates;
-- compile manual triggers;
 - support branch joins;
 - expose a public compiler HTTP endpoint.
 
