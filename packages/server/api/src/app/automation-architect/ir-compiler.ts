@@ -23,6 +23,8 @@ import {
     StepLocationRelativeToParent,
 } from '@activepieces/shared'
 
+const MANUAL_PIECE_NAME = '@activepieces/piece-manual-trigger'
+const MANUAL_TRIGGER_NAME = 'manual_trigger'
 const SCHEDULE_PIECE_NAME = '@activepieces/piece-schedule'
 const SCHEDULE_TRIGGER_NAME = 'cron_expression'
 
@@ -55,6 +57,12 @@ export type ActivepiecesIrCompilerDependencies = {
         platformId: string
         projectId: string
     }): Promise<CompilerPieceMetadata | undefined>
+    validateConnectionBinding(params: {
+        externalId: string
+        pieceName: string
+        platformId: string
+        projectId: string
+    }): Promise<boolean>
     now(): string
 }
 
@@ -73,6 +81,7 @@ export type ActivepiecesIrCompilerDiagnosticCode =
     | 'COMPONENT_NOT_FOUND'
     | 'MISSING_CONNECTION_BINDING'
     | 'INVALID_CONNECTION_BINDING'
+    | 'CONNECTION_BINDING_NOT_FOUND_OR_MISMATCHED'
     | 'UNKNOWN_INPUT_PROPERTY'
     | 'MISSING_REQUIRED_INPUT'
     | 'UNSUPPORTED_TRIGGER'
@@ -221,14 +230,38 @@ class CompilerContext {
 
         switch (this.params.automation.trigger.type) {
             case 'MANUAL':
-                throw compilerError(
-                    'UNSUPPORTED_TRIGGER',
-                    'Manual triggers do not yet have a safe Activepieces runtime mapping.',
-                )
+                return this.compileManualTrigger(nextAction)
             case 'SCHEDULE':
                 return this.compileScheduleTrigger(nextAction)
             case 'EVENT':
                 return this.compileEventTrigger(nextAction)
+        }
+    }
+
+    private async compileManualTrigger(nextAction: FlowAction | undefined): Promise<FlowTrigger> {
+        const piece = await this.resolvePiece(MANUAL_PIECE_NAME)
+        const trigger = piece.triggers[MANUAL_TRIGGER_NAME]
+        if (trigger === undefined) {
+            throw compilerError(
+                'COMPONENT_NOT_FOUND',
+                `Manual trigger "${MANUAL_TRIGGER_NAME}" is unavailable on "${MANUAL_PIECE_NAME}".`,
+            )
+        }
+
+        return {
+            name: 'trigger',
+            displayName: trigger.displayName,
+            valid: true,
+            lastUpdatedDate: this.params.dependencies.now(),
+            type: FlowTriggerType.PIECE,
+            nextAction,
+            settings: {
+                pieceName: piece.name,
+                pieceVersion: piece.version,
+                triggerName: trigger.name,
+                input: {},
+                propertySettings: {},
+            },
         }
     }
 
@@ -280,9 +313,10 @@ class CompilerContext {
             input: this.params.automation.trigger.input,
         })
         const input = this.compileInput(this.params.automation.trigger.input)
-        this.attachAuth({
+        await this.attachAuth({
             capabilityId: this.params.automation.trigger.capability,
             component: capability.component,
+            pieceName: capability.piece.name,
             input,
         })
 
@@ -345,9 +379,10 @@ class CompilerContext {
             stepId: step.id,
         })
         const input = this.compileInput(step.input)
-        this.attachAuth({
+        await this.attachAuth({
             capabilityId: step.capability,
             component: capability.component,
+            pieceName: capability.piece.name,
             input,
             stepId: step.id,
         })
@@ -413,12 +448,13 @@ class CompilerContext {
         )
     }
 
-    private attachAuth(params: {
+    private async attachAuth(params: {
         capabilityId: string
         component: CompilerComponentMetadata
+        pieceName: string
         input: Record<string, unknown>
         stepId?: string
-    }): void {
+    }): Promise<void> {
         if (!params.component.requireAuth) {
             return
         }
@@ -435,6 +471,20 @@ class CompilerContext {
             throw compilerError(
                 'INVALID_CONNECTION_BINDING',
                 `Connection externalId for "${params.capabilityId}" contains characters that are unsafe in an Activepieces connection expression.`,
+                params.stepId,
+                params.capabilityId,
+            )
+        }
+        const validBinding = await this.params.dependencies.validateConnectionBinding({
+            externalId,
+            pieceName: params.pieceName,
+            platformId: this.params.platformId,
+            projectId: this.params.projectId,
+        })
+        if (!validBinding) {
+            throw compilerError(
+                'CONNECTION_BINDING_NOT_FOUND_OR_MISMATCHED',
+                `Connection externalId "${externalId}" is not an active project connection for piece "${params.pieceName}".`,
                 params.stepId,
                 params.capabilityId,
             )
@@ -594,10 +644,15 @@ function validateSupportedGraph(automation: AutomationIrV1): ActivepiecesIrCompi
     const diagnostics: ActivepiecesIrCompilerDiagnostic[] = []
 
     if (automation.trigger.type === 'MANUAL') {
-        diagnostics.push({
-            code: 'UNSUPPORTED_TRIGGER',
-            message: 'Manual triggers do not yet have a safe Activepieces runtime mapping.',
-        })
+        for (const step of automation.steps) {
+            if (collectAllReferencesForStep(step).some((reference) => reference.source === 'TRIGGER')) {
+                diagnostics.push({
+                    code: 'UNSUPPORTED_REFERENCE_SOURCE',
+                    message: `Step "${step.id}" references manual-trigger output, but the Activepieces manual trigger carries no payload.`,
+                    stepId: step.id,
+                })
+            }
+        }
     }
 
     for (const step of automation.steps) {
@@ -686,6 +741,27 @@ function targetsForStep(step: AutomationStep): string[] {
         case 'APPROVAL_GATE':
             return [step.onApproved, step.onRejected].filter((value): value is string => value !== undefined)
     }
+}
+
+function collectAllReferencesForStep(step: AutomationStep): AutomationReference[] {
+    const values: AutomationValue[] = []
+    switch (step.type) {
+        case 'ACTION':
+        case 'NOTIFICATION':
+        case 'AI_DECISION':
+            values.push(step.input)
+            break
+        case 'CONDITION':
+            values.push(step.expression.left)
+            if (step.expression.right !== undefined) {
+                values.push(step.expression.right)
+            }
+            break
+        case 'APPROVAL_GATE':
+            values.push(step.prompt)
+            break
+    }
+    return values.flatMap((value) => collectReferences(value))
 }
 
 function collectStepReferences(step: AutomationStep): Array<AutomationReference & { source: 'STEP' }> {
