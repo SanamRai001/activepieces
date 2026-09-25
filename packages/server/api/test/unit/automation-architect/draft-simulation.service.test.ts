@@ -205,6 +205,36 @@ describe('Automation draft simulation service', () => {
         expect(tested).toBe(false)
     })
 
+    it('refuses a validated draft without a pinned version id', async () => {
+        let tested = false
+        const service = createAutomationDraftSimulationService(dependencies({
+            validateDraft: async () => ({
+                status: 'VALIDATED_DRAFT',
+                flowId: 'flow-1',
+                structural: {
+                    totalSteps: 2,
+                    validSteps: 2,
+                    invalidSteps: 0,
+                    skippedSteps: 0,
+                    issues: [],
+                },
+            }),
+            testDraft: async () => {
+                tested = true
+                throw new Error('should not run')
+            },
+        }))
+
+        const result = await service.simulate({
+            flowId: 'flow-1',
+            projectId: 'project-1',
+        })
+
+        expect(result.status).toBe('UNSAFE_ARTIFACT')
+        expect(result.reasons?.[0]).toContain('flow version id')
+        expect(tested).toBe(false)
+    })
+
     it('maps version drift to UNSAFE_ARTIFACT', async () => {
         const service = createAutomationDraftSimulationService(dependencies({
             testDraft: async () => ({
