@@ -86,6 +86,16 @@ export function createAutomationDraftSimulationService(
                     break
             }
 
+            if (validation.flowVersionId === undefined) {
+                return {
+                    status: 'UNSAFE_ARTIFACT',
+                    flowId: validation.flowId,
+                    reasons: [
+                        'Validated draft did not include a flow version id; refusing an unpinned test.',
+                    ],
+                }
+            }
+
             const test = await dependencies.testDraft({
                 flowId: validation.flowId,
                 projectId: params.projectId,
