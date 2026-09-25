@@ -1,5 +1,6 @@
-import { FlowOperationType, FlowStatus, flowStructureUtil, type FlowTrigger } from '@activepieces/shared'
+import { AppConnectionStatus, FlowOperationType, FlowStatus, flowStructureUtil, type FlowTrigger } from '@activepieces/shared'
 import type { FastifyBaseLogger } from 'fastify'
+import { appConnectionService } from '../app-connection/app-connection-service/app-connection-service'
 import { flowService } from '../flows/flow/flow.service'
 import { pieceMetadataService } from '../pieces/metadata/piece-metadata-service'
 import {
@@ -148,12 +149,23 @@ export const createActivepiecesDraftCompiler = (
 
 export const activepiecesIrCompilerService = (log: FastifyBaseLogger) => {
     const metadata = pieceMetadataService(log)
+    const connections = appConnectionService(log)
     const compiler = createActivepiecesIrCompiler({
         getPiece: ({ name, platformId, projectId }) => metadata.get({
             name,
             platformId,
             projectId,
         }),
+        validateConnectionBinding: async ({ externalId, pieceName, platformId, projectId }) => {
+            const connection = await connections.getOneWithoutValue({
+                externalId,
+                platformId,
+                projectId,
+            })
+            return connection !== null
+                && connection.status === AppConnectionStatus.ACTIVE
+                && connection.pieceName === pieceName
+        },
         now: () => new Date().toISOString(),
     })
 
