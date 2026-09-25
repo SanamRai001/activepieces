@@ -76,6 +76,8 @@ function run(
         updated: updatedAt,
         tags: [],
         steps: {},
+        logsFileId: null,
+        archivedAt: null,
         failParentOnFailure: true,
         ...overrides,
     }
