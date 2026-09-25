@@ -73,14 +73,34 @@ function schedulePiece(): CompilerPieceMetadata {
     }
 }
 
+function manualPiece(): CompilerPieceMetadata {
+    return {
+        name: '@activepieces/piece-manual-trigger',
+        displayName: 'Manual Trigger',
+        version: '0.0.8',
+        actions: {},
+        triggers: {
+            manual_trigger: {
+                name: 'manual_trigger',
+                displayName: 'Manual Trigger',
+                requireAuth: false,
+                props: {},
+            },
+        },
+    }
+}
+
+
 function dependencies(
     pieces: Record<string, CompilerPieceMetadata> = {
         '@activepieces/piece-github': githubPiece(),
         '@activepieces/piece-schedule': schedulePiece(),
+        '@activepieces/piece-manual-trigger': manualPiece(),
     },
 ): ActivepiecesIrCompilerDependencies {
     return {
         getPiece: async ({ name }) => pieces[name],
+        validateConnectionBinding: async () => true,
         now: () => NOW,
     }
 }
@@ -226,6 +246,92 @@ describe('Activepieces IR compiler', () => {
                 cronExpression: '0 22 * * *',
                 timezone: 'Asia/Kathmandu',
             },
+        }))
+    })
+
+    it('compiles manual IR through the built-in manual trigger piece', async () => {
+        const compiler = createActivepiecesIrCompiler(dependencies())
+        const result = await compiler.compile({
+            automation: {
+                schemaVersion: '1',
+                name: 'Manual maintenance',
+                goal: 'Run maintenance on demand.',
+                trigger: {
+                    type: 'MANUAL',
+                    next: 'comment',
+                },
+                steps: [{
+                    id: 'comment',
+                    name: 'Send comment',
+                    type: 'ACTION',
+                    capability: 'activepieces:action:@activepieces/piece-github:send_comment',
+                    input: {
+                        issueId: '123',
+                        body: 'Maintenance started',
+                    },
+                }],
+            },
+            projectId: PROJECT_ID,
+            platformId: PLATFORM_ID,
+            connectionBindings: {
+                'activepieces:action:@activepieces/piece-github:send_comment': 'github-main',
+            },
+        })
+
+        expect(result.status).toBe('COMPILED')
+        if (result.status !== 'COMPILED') throw new Error('Expected compiled result.')
+        const operation = result.operations[0]
+        if (operation?.type !== FlowOperationType.UPDATE_TRIGGER) throw new Error('Expected trigger update.')
+        if (operation.request.type !== FlowTriggerType.PIECE) throw new Error('Expected piece trigger.')
+        expect(operation.request.settings).toEqual(expect.objectContaining({
+            pieceName: '@activepieces/piece-manual-trigger',
+            pieceVersion: '0.0.8',
+            triggerName: 'manual_trigger',
+            input: {},
+        }))
+    })
+
+    it('rejects references to manual-trigger payload because the trigger carries no data', async () => {
+        const compiler = createActivepiecesIrCompiler(dependencies())
+        const result = await compiler.compile({
+            automation: {
+                schemaVersion: '1',
+                name: 'Invalid manual payload use',
+                goal: 'Do not read nonexistent manual trigger data.',
+                trigger: {
+                    type: 'MANUAL',
+                    next: 'comment',
+                },
+                steps: [{
+                    id: 'comment',
+                    name: 'Send comment',
+                    type: 'ACTION',
+                    capability: 'activepieces:action:@activepieces/piece-github:send_comment',
+                    input: {
+                        issueId: {
+                            kind: 'REFERENCE',
+                            source: 'TRIGGER',
+                            path: ['id'],
+                        },
+                        body: 'Maintenance started',
+                    },
+                }],
+            },
+            projectId: PROJECT_ID,
+            platformId: PLATFORM_ID,
+            connectionBindings: {
+                'activepieces:action:@activepieces/piece-github:send_comment': 'github-main',
+            },
+        })
+
+        expect(result).toEqual(expect.objectContaining({
+            status: 'FAILED',
+            diagnostics: expect.arrayContaining([
+                expect.objectContaining({
+                    code: 'UNSUPPORTED_REFERENCE_SOURCE',
+                    stepId: 'comment',
+                }),
+            ]),
         }))
     })
 
@@ -479,6 +585,35 @@ describe('Activepieces IR compiler', () => {
         const branch = router.settings.branches[0]
         if (branch?.branchType !== 'CONDITION') throw new Error('Expected condition branch.')
         expect(branch.conditions[0]?.[0]?.firstValue).toBe('{{aa_step_001[\'output\'][\'ok\']}}')
+    })
+
+    it('rejects a syntactically safe binding that is not an active matching project connection', async () => {
+        const compiler = createActivepiecesIrCompiler({
+            ...dependencies(),
+            validateConnectionBinding: async ({ externalId, pieceName }) =>
+                externalId === 'github-main'
+                && pieceName === '@activepieces/piece-github'
+                ? false
+                : true,
+        })
+        const result = await compiler.compile({
+            automation: baseEventAutomation(),
+            projectId: PROJECT_ID,
+            platformId: PLATFORM_ID,
+            connectionBindings: {
+                'activepieces:trigger:@activepieces/piece-github:new_issue': 'github-main',
+                'activepieces:action:@activepieces/piece-github:add_label': 'github-main',
+            },
+        })
+
+        expect(result).toEqual(expect.objectContaining({
+            status: 'FAILED',
+            diagnostics: expect.arrayContaining([
+                expect.objectContaining({
+                    code: 'CONNECTION_BINDING_NOT_FOUND_OR_MISMATCHED',
+                }),
+            ]),
+        }))
     })
 
     it('rejects unsafe connection external ids before flow creation', async () => {
