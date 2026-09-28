@@ -80,6 +80,10 @@ export const AutomationActivationApprovalEntity = new EntitySchema<AutomationAct
     },
     indices: [
         {
+            name: 'idx_automation_activation_approval_flow',
+            columns: ['projectId', 'flowId', 'created'],
+        },
+        {
             name: 'idx_automation_activation_approval_flow_version',
             columns: ['projectId', 'flowId', 'flowVersionId', 'created'],
         },
