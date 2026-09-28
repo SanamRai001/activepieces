@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import type { AutomationPolicy, AutomationRiskClass } from '@activepieces/automation-architect'
+import { AutomationPolicySchema, type AutomationPolicy, type AutomationRiskClass } from '@activepieces/automation-architect'
 import type {
     AutomationActivationApproval,
     AutomationActivationPolicySnapshot,
@@ -61,6 +61,15 @@ export type EvaluateActivationReadinessParams = {
 export function evaluateActivationReadiness(
     params: EvaluateActivationReadinessParams,
 ): AutomationActivationReadinessResult {
+    const policyValidation = AutomationPolicySchema.safeParse(params.policy.riskPolicy)
+    if (!policyValidation.success) {
+        return {
+            status: 'DENIED',
+            flowId: params.flowId,
+            reasons: ['Activation risk policy is invalid or contradictory.'],
+        }
+    }
+
     const validationResult = mapValidation(params.validation)
     if (validationResult !== null) {
         return validationResult
