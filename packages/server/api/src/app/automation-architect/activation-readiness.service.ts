@@ -35,7 +35,6 @@ export type ActivationReadinessDependencies = {
     getLatestApproval(params: {
         projectId: string
         flowId: string
-        flowVersionId: string
     }): Promise<AutomationActivationApproval | null>
     saveApproval(record: Omit<AutomationActivationApproval, 'created' | 'updated'>): Promise<AutomationActivationApproval>
 }
@@ -95,7 +94,6 @@ export function createActivationReadinessService(dependencies: ActivationReadine
         const approval = await dependencies.getLatestApproval({
             projectId: params.projectId,
             flowId: params.flowId,
-            flowVersionId: validation.flowVersionId,
         })
 
         return evaluateActivationReadiness({
@@ -231,12 +229,11 @@ export const activationReadinessService = (log: FastifyBaseLogger) => {
             }
             return risks
         },
-        getLatestApproval: async ({ projectId, flowId, flowVersionId }) => {
+        getLatestApproval: async ({ projectId, flowId }) => {
             return approvalRepo().findOne({
                 where: {
                     projectId,
                     flowId,
-                    flowVersionId,
                 },
                 order: {
                     created: 'DESC',
