@@ -1,5 +1,5 @@
 import { apId } from '@activepieces/core-utils'
-import { FlowActionType, FlowRunStatus, RunEnvironment, flowStructureUtil } from '@activepieces/shared'
+import { FlowActionType, flowStructureUtil } from '@activepieces/shared'
 import type { FastifyBaseLogger } from 'fastify'
 import { repoFactory } from '../core/db/repo-factory'
 import { flowRunService } from '../flows/flow-run/flow-run-service'
@@ -7,19 +7,19 @@ import { flowService } from '../flows/flow/flow.service'
 import { pieceMetadataService } from '../pieces/metadata/piece-metadata-service'
 import { projectService } from '../project/project-service'
 import {
-    AutomationActivationApproval,
     AutomationActivationApprovalEntity,
-    AutomationActivationRiskSnapshot,
+    type AutomationActivationApproval,
+    type AutomationActivationRiskSnapshot,
 } from './activation-approval.entity'
 import {
-    AutomationActivationPolicy,
-    AutomationActivationReadinessResult,
-    AutomationSimulationEvidence,
     evaluateActivationReadiness,
+    type AutomationActivationPolicy,
+    type AutomationActivationReadinessResult,
+    type AutomationSimulationEvidence,
 } from './activation-readiness'
 import {
-    AutomationDraftValidationResult,
     automationDraftValidationService,
+    type AutomationDraftValidationResult,
 } from './draft-validation.service'
 
 const approvalRepo = repoFactory(AutomationActivationApprovalEntity)
