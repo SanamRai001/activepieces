@@ -12,6 +12,8 @@ import { flowTestOrchestrationService } from '../../flows/testing/flow-test-orch
 import { mcpUtils } from './mcp-utils'
 
 const ACTION_RUN_STEP_NAME = 'step_1'
+const POLL_INTERVAL_MS = 2000
+const MAX_WAIT_MS = 120_000
 
 // The actionable part of an API error (which field, what format, allowed values) often lands past
 // 300 chars, so the agent never saw it. Keep the head but allow enough to carry the real guidance.
@@ -505,6 +507,32 @@ export function formatPieceActionRunResult({ outcome, runId, displayName, action
         structuredContent: { errorSummary: summary },
         isError: true,
     }
+}
+
+export async function pollForRunCompletion(
+    log: FastifyBaseLogger,
+    runId: string,
+    projectId: string,
+): Promise<FlowRun> {
+    const start = Date.now()
+    while (Date.now() - start < MAX_WAIT_MS) {
+        const run = await flowRunService(log).getOnePopulatedOrThrow({
+            id: runId,
+            projectId,
+        })
+        if (isFlowRunStateTerminal({
+            status: run.status,
+            ignoreInternalError: false,
+        })) {
+            return run
+        }
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+    }
+
+    return flowRunService(log).getOnePopulatedOrThrow({
+        id: runId,
+        projectId,
+    })
 }
 
 export function formatRunResult(run: FlowRun): string {
