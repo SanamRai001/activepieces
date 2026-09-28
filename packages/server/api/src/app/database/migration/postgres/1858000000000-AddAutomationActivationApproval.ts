@@ -31,6 +31,10 @@ export class AddAutomationActivationApproval1858000000000 implements Migration {
             )
         `)
         await queryRunner.query(`
+            CREATE INDEX IF NOT EXISTS "idx_automation_activation_approval_flow"
+            ON "automation_activation_approval" ("projectId", "flowId", "created")
+        `)
+        await queryRunner.query(`
             CREATE INDEX IF NOT EXISTS "idx_automation_activation_approval_flow_version"
             ON "automation_activation_approval" ("projectId", "flowId", "flowVersionId", "created")
         `)
