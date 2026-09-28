@@ -100,3 +100,24 @@ Phase 6A contains no:
 - production execution.
 
 Phase 6B may later consume `READY_TO_ACTIVATE` evidence and add one minimal audited activation operation.
+
+
+## Human identity boundary
+
+The service records an `approvedByUserId`, but Phase 6A intentionally exposes no public approval endpoint.
+
+The caller that creates approval evidence must be a trusted authenticated/authorized surface. Model output and arbitrary client-supplied identity are never proof of human approval.
+
+Phase 6B must re-check the authenticated actor and readiness immediately before any publish/enable operation.
+
+## Final verification
+
+- Workflow: `Activation Readiness Verification`
+- Run: `36461682305`
+- Verified implementation head: `6b769826bec8fbd81faa0cef04cf3bc51a23981d`
+- frozen install: PASS
+- API build: PASS — 17/17 tasks
+- typed ESLint: PASS — 0 errors
+- focused Vitest: PASS — 3 files, 36/36 tests
+
+The temporary verification workflow was removed after the green run.
