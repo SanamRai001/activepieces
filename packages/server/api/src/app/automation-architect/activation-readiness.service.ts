@@ -205,16 +205,23 @@ export const activationReadinessService = (log: FastifyBaseLogger) => {
 
             const risks: AutomationActivationRiskSnapshot[] = []
             for (const step of pieceActions) {
+                const actionName = step.settings.actionName
+                if (actionName === undefined) {
+                    throw new Error(
+                        `Piece action is not configured: ${step.settings.pieceName}/${step.name}.`,
+                    )
+                }
+
                 const piece = await metadata.get({
                     name: step.settings.pieceName,
                     version: step.settings.pieceVersion,
                     platformId,
                     projectId,
                 })
-                const action = piece?.actions[step.settings.actionName]
+                const action = piece?.actions[actionName]
                 if (piece === undefined || action === undefined) {
                     throw new Error(
-                        `Piece action is no longer available: ${step.settings.pieceName}/${step.settings.actionName}.`,
+                        `Piece action is no longer available: ${step.settings.pieceName}/${actionName}.`,
                     )
                 }
 
@@ -222,7 +229,7 @@ export const activationReadinessService = (log: FastifyBaseLogger) => {
                 risks.push({
                     stepName: step.name,
                     pieceName: step.settings.pieceName,
-                    actionName: step.settings.actionName,
+                    actionName,
                     riskClass: mapped.riskClass,
                     rationale: mapped.rationale,
                 })
