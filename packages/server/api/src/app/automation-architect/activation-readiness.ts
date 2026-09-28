@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
-import { AutomationPolicySchema, type AutomationPolicy, type AutomationRiskClass } from '@activepieces/automation-architect'
+import { type AutomationPolicy, AutomationPolicySchema, type AutomationRiskClass } from '@activepieces/automation-architect'
+import { FlowRunStatus, RunEnvironment } from '@activepieces/shared'
 import type {
     AutomationActivationApproval,
     AutomationActivationPolicySnapshot,
@@ -29,8 +30,8 @@ export type AutomationSimulationEvidence = {
     flowId: string
     projectId: string
     flowVersionId: string
-    environment: 'TESTING' | string
-    status: 'SUCCEEDED' | string
+    environment: RunEnvironment
+    status: FlowRunStatus
 }
 
 export type AutomationActivationReadinessResult = {
@@ -250,13 +251,13 @@ function validateSimulationEvidence(params: {
             stale: true,
         }
     }
-    if (params.evidence.environment !== 'TESTING') {
+    if (params.evidence.environment !== RunEnvironment.TESTING) {
         return {
             message: 'Only TESTING-environment simulation evidence is accepted.',
             stale: false,
         }
     }
-    if (params.evidence.status !== 'SUCCEEDED') {
+    if (params.evidence.status !== FlowRunStatus.SUCCEEDED) {
         return {
             message: `Simulation run must be SUCCEEDED, received ${params.evidence.status}.`,
             stale: false,
