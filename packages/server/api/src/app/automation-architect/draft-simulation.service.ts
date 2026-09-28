@@ -42,6 +42,7 @@ export type AutomationDraftSimulationDependencies = {
         stepName?: string
         triggerTestData?: Record<string, unknown>
         expectedFlowVersionId?: string
+        requireUnpublishedDraft?: boolean
     }): Promise<FlowTestOrchestrationResult>
 }
 
@@ -103,6 +104,7 @@ export function createAutomationDraftSimulationService(
                 stepName: params.stepName,
                 triggerTestData: params.triggerTestData,
                 expectedFlowVersionId: validation.flowVersionId,
+                requireUnpublishedDraft: true,
             })
 
             return mapTestResult(test)
@@ -163,6 +165,14 @@ function mapTestResult(
                 ...common,
                 reasons: [
                     'Draft version changed after validation; revalidate before testing.',
+                ],
+            }
+        case 'UNSAFE_FLOW_ARTIFACT':
+            return {
+                status: 'UNSAFE_ARTIFACT',
+                ...common,
+                reasons: [
+                    'Flow is no longer a disabled, unpublished draft; revalidate before testing.',
                 ],
             }
         case 'UNSAFE_TEST_RUN':
