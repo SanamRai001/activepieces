@@ -1,5 +1,4 @@
-import type { AutomationPolicy } from '@activepieces/automation-architect'
-import type { AutomationRiskClass } from '@activepieces/automation-architect'
+import type { AutomationPolicy, AutomationRiskClass } from '@activepieces/automation-architect'
 import { EntitySchema } from 'typeorm'
 import { ApIdSchema, BaseColumnSchemaPart } from '../database/database-common'
 
