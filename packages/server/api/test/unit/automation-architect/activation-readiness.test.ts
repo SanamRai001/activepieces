@@ -265,6 +265,51 @@ describe('activation readiness evaluator', () => {
         expect(ready.approvalId).toBe(approval.id)
     })
 
+    it('marks approval stale when the flow version changes but validation is fresh', () => {
+        const previousApproval = makeApproval(policy, writeRisk)
+        const newVersionId = 'vers_new__12345678901'
+        const result = evaluateActivationReadiness({
+            flowId,
+            projectId,
+            expectedFlowVersionId: newVersionId,
+            simulationRunId: 'run_new__12345678901',
+            policy,
+            validation: {
+                status: 'VALIDATED_DRAFT',
+                flowId,
+                flowVersionId: newVersionId,
+            },
+            simulation: {
+                ...simulation,
+                runId: 'run_new__12345678901',
+                flowVersionId: newVersionId,
+            },
+            riskSnapshot: writeRisk,
+            approval: previousApproval,
+        })
+        expect(result.status).toBe('STALE_APPROVAL')
+    })
+
+    it('marks approval stale when the required simulation evidence changes', () => {
+        const approval = makeApproval(policy, writeRisk)
+        const differentRunId = 'run_other_1234567890'
+        const result = evaluateActivationReadiness({
+            flowId,
+            projectId,
+            expectedFlowVersionId: versionId,
+            simulationRunId: differentRunId,
+            policy,
+            validation,
+            simulation: {
+                ...simulation,
+                runId: differentRunId,
+            },
+            riskSnapshot: writeRisk,
+            approval,
+        })
+        expect(result.status).toBe('STALE_APPROVAL')
+    })
+
     it('marks approval stale when policy changes', () => {
         const approval = makeApproval(policy, writeRisk)
         const changedPolicy: AutomationActivationPolicy = {
@@ -286,6 +331,28 @@ describe('activation readiness evaluator', () => {
             approval,
         })
         expect(result.status).toBe('STALE_APPROVAL')
+    })
+
+    it('applies schema defaults to runtime activation policy', () => {
+        const result = evaluateActivationReadiness({
+            flowId,
+            projectId,
+            expectedFlowVersionId: versionId,
+            simulationRunId: runId,
+            policy: {
+                riskPolicy: {
+                    requireApprovalFor: [],
+                    maxAttemptsPerStep: 3,
+                } as AutomationPolicy,
+                requireSuccessfulSimulation: true,
+            },
+            validation,
+            simulation,
+            riskSnapshot: readRisk,
+            approval: null,
+        })
+        expect(result.status).toBe('READY_TO_ACTIVATE')
+        expect(result.policySnapshot?.riskPolicy.deny).toEqual([])
     })
 
     it('maps unsafe structural validation directly', () => {
