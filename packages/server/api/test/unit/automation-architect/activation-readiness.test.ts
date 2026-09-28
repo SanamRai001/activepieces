@@ -1,4 +1,5 @@
 import type { AutomationPolicy } from '@activepieces/automation-architect'
+import { FlowRunStatus, RunEnvironment } from '@activepieces/shared'
 import { describe, expect, it } from 'vitest'
 import type { AutomationActivationApproval, AutomationActivationRiskSnapshot } from '../../../src/app/automation-architect/activation-approval.entity'
 import {
@@ -36,8 +37,8 @@ const simulation = {
     flowId,
     projectId,
     flowVersionId: versionId,
-    environment: 'TESTING',
-    status: 'SUCCEEDED',
+    environment: RunEnvironment.TESTING,
+    status: FlowRunStatus.SUCCEEDED,
 }
 
 const writeRisk: AutomationActivationRiskSnapshot[] = [{
@@ -194,7 +195,7 @@ describe('activation readiness evaluator', () => {
             validation,
             simulation: {
                 ...simulation,
-                environment: 'PRODUCTION',
+                environment: RunEnvironment.PRODUCTION,
             },
             riskSnapshot: readRisk,
             approval: null,
@@ -212,7 +213,7 @@ describe('activation readiness evaluator', () => {
             validation,
             simulation: {
                 ...simulation,
-                status: 'FAILED',
+                status: FlowRunStatus.FAILED,
             },
             riskSnapshot: readRisk,
             approval: null,
