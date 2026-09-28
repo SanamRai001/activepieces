@@ -1,0 +1,55 @@
+name: Activation Readiness Verification
+
+on:
+  push:
+    branches:
+      - feat/activation-readiness-approval
+
+permissions:
+  contents: read
+
+concurrency:
+  group: activation-readiness-verification
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feat/activation-readiness-approval
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: Install repository dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build API with workspace dependencies
+        run: bunx turbo run build --filter=api
+
+      - name: Lint activation readiness files
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: |
+          bunx eslint \
+            'packages/server/api/src/app/automation-architect/activation-approval.entity.ts' \
+            'packages/server/api/src/app/automation-architect/activation-readiness.ts' \
+            'packages/server/api/src/app/automation-architect/activation-readiness.service.ts' \
+            'packages/server/api/src/app/database/migration/postgres/1858000000000-AddAutomationActivationApproval.ts' \
+            'packages/server/api/test/unit/automation-architect/activation-readiness.test.ts'
+
+      - name: Test activation and draft safety regressions
+        working-directory: packages/server/api
+        run: |
+          bunx vitest run \
+            test/unit/automation-architect/activation-readiness.test.ts \
+            test/unit/automation-architect/draft-validation.service.test.ts \
+            test/unit/automation-architect/draft-simulation.service.test.ts
