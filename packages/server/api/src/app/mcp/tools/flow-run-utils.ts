@@ -4,7 +4,7 @@ import { CodeAction, createKeyForFormInput, FlowActionType, FlowRun, FlowRunStat
 import dayjs from 'dayjs'
 import { FastifyBaseLogger } from 'fastify'
 import { ActionRunResult, actionRunService } from '../../action-run/action-run.service'
-import { isOutsideRetentionWindow } from '../../flows/flow-run/flow-run-service'
+import { flowRunService, isOutsideRetentionWindow } from '../../flows/flow-run/flow-run-service'
 import { system } from '../../helper/system/system'
 import { AppSystemProp } from '../../helper/system/system-props'
 import { projectService } from '../../project/project-service'
