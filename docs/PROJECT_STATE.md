@@ -13,7 +13,8 @@ human automation problem
 → safe draft compiler
 → structural validation
 → safe simulation
-→ later approval-controlled activation
+→ approval-controlled activation
+→ runtime supervision
 ```
 
 The system must prefer deterministic behavior where possible, keep model output non-authoritative for safety-sensitive facts, and preserve human control over high-impact actions.
@@ -28,68 +29,248 @@ The system must prefer deterministic behavior where possible, keep model output 
 - Planner: `feat/natural-language-planner-phase3` — PR #4
 - Capability discovery: `feat/activepieces-capability-discovery` — PR #5
 - IR compiler: `feat/activepieces-ir-compiler` — PR #6
-- Working branch: `feat/draft-structural-validation` — PR #7
+- Structural validation: `feat/draft-structural-validation` — PR #7
+- Working branch: `feat/draft-safe-simulation` — PR #8
 - PR #3 is superseded/closed.
 
 ## Completed phase
 
-**Phase 5A — Draft Structural Validation**
+**Phase 5B — Safe Draft Test / Simulation Service**
 
-### Changes
+Phase 5 is now complete.
 
-- Extracted the structural validation logic previously private to `ap_validate_flow` into:
-  - `packages/server/api/src/app/flows/validation/flow-structure-validation.ts`.
-- `ap_validate_flow` now uses the shared validator.
-- Preserved existing MCP validation wording and structured-result behavior.
-- Added reusable checks for:
-  - unconfigured trigger;
-  - invalid non-skipped steps;
-  - missing step references;
-  - references to later steps;
-  - empty condition branches;
-  - informational empty fallback branches;
-  - valid/invalid/skipped counts.
-- Added Automation Architect draft validation service:
-  - `packages/server/api/src/app/automation-architect/draft-validation.service.ts`.
-- Added hard artifact-safety checks:
-  - flow status must be `DISABLED`;
-  - `publishedVersionId` must be null;
-  - flow version state must be `DRAFT`.
-- Added Automation Architect result states:
-  - `VALIDATED_DRAFT`;
-  - `NEEDS_CONFIGURATION`;
-  - `FLOW_NOT_FOUND`;
-  - `UNSAFE_ARTIFACT`.
-- Added focused validator and Automation Architect service tests.
-- Added:
-  - `docs/AUTOMATION_ARCHITECT_DRAFT_VALIDATION.md`.
-- No flow execution, activation, publishing, trigger enablement, or external action execution was added.
+A generated Automation Architect flow can now move through:
 
-## Verification
+```text
+Automation IR
+    ↓
+Activepieces draft compiler
+    ↓
+DISABLED + unpublished DRAFT
+    ↓
+shared structural validation
+    ↓
+VALIDATED_DRAFT
+    ↓
+safe TESTING-environment simulation
+    ↓
+TEST_SUCCEEDED / TEST_FAILED / TEST_TIMEOUT
+```
 
-Final Phase 5A verification:
+No activation/publishing path exists yet.
 
-- Workflow: `Draft Structural Validation Verification`
-- Run ID: `36086683738`
-- Verified implementation head: `9e0a6c881c4d006d1e2bd6041a2820d6cdb6cdf2`
-- `bun install --frozen-lockfile`: PASS
-- API build via `turbo run build --filter=api`: PASS
+## Phase 5B changes
+
+### Shared flow-test orchestration
+
+Extracted reusable test orchestration into:
+
+```text
+packages/server/api/src/app/flows/testing/flow-test-orchestration.service.ts
+```
+
+Both Automation Architect and MCP now use the same underlying flow-test behavior.
+
+The shared service:
+
+- loads the flow in project scope;
+- optionally pins an expected `flowVersionId`;
+- can require a disabled + unpublished + DRAFT artifact;
+- rejects unconfigured triggers;
+- rejects unknown requested steps;
+- records invalid full-flow steps for diagnostics;
+- optionally saves explicit mock trigger data as draft sample data;
+- re-checks artifact safety immediately before execution;
+- invokes the existing Activepieces test runner;
+- accepts only `RunEnvironment.TESTING`;
+- polls for terminal completion with a bounded timeout;
+- returns stable machine-readable results.
+
+### Exact draft version pinning
+
+Automation Architect first validates the draft through Phase 5A and then passes that exact:
+
+```text
+flowVersionId
+```
+
+to the simulation service.
+
+If the draft version changes between validation and execution:
+
+```text
+FLOW_VERSION_CHANGED
+```
+
+is returned and the test is refused.
+
+This closes a time-of-check/time-of-use gap between validation and simulation.
+
+### Draft-state revalidation
+
+Immediately before the runtime test starts, the shared service re-loads the flow when Automation Architect requests the draft-only guard.
+
+Simulation is refused unless:
+
+```text
+flow.status === DISABLED
+publishedVersionId === null
+flow.version.state === DRAFT
+```
+
+If the artifact became enabled, published, locked, deleted, or replaced by another draft version, Automation Architect refuses execution.
+
+### Test-environment enforcement
+
+The started run and terminal run must both satisfy:
+
+```text
+environment === TESTING
+```
+
+Any non-TESTING result becomes:
+
+```text
+UNSAFE_TEST_RUN
+```
+
+Automation Architect maps this to:
+
+```text
+UNSAFE_ARTIFACT
+```
+
+and does not treat the result as valid simulation evidence.
+
+### Trigger-data provenance
+
+Simulation now reports one of:
+
+```text
+USER_SUPPLIED_MOCK
+EXISTING_DRAFT_SAMPLE
+NO_TRIGGER_SAMPLE
+```
+
+#### USER_SUPPLIED_MOCK
+
+The caller explicitly supplied trigger payload.
+
+It is saved only as draft sample data and must never be described as real-event verification.
+
+#### EXISTING_DRAFT_SAMPLE
+
+The flow already had trigger sample data.
+
+Its provenance is unknown, so Automation Architect must not claim it came from a real external trigger event.
+
+#### NO_TRIGGER_SAMPLE
+
+No trigger sample file is attached.
+
+The test runner may therefore execute with an empty/no trigger payload depending on trigger behavior.
+
+### Stable Automation Architect simulation outcomes
+
+Automation Architect exposes:
+
+```text
+TEST_SUCCEEDED
+TEST_FAILED
+TEST_TIMEOUT
+NEEDS_CONFIGURATION
+FLOW_NOT_FOUND
+UNSAFE_ARTIFACT
+```
+
+Terminal engine `TIMEOUT` is mapped to `TEST_TIMEOUT`.
+
+A polling deadline that expires while the run remains non-terminal is also `TEST_TIMEOUT`; it is not misreported as a test failure.
+
+### MCP compatibility
+
+`executeFlowTest(...)` in:
+
+```text
+mcp/tools/flow-run-utils.ts
+```
+
+now delegates runtime orchestration to the shared flow-test service.
+
+MCP retains its human-facing:
+
+- warnings;
+- trigger-shape hint;
+- output formatting;
+- timeout guidance;
+- internal-error messaging.
+
+This avoids maintaining a separate Automation Architect test runner.
+
+### Safety boundary
+
+Phase 5B does not:
+
+- publish;
+- enable a flow;
+- change flow status;
+- run production environment intentionally;
+- claim mock/sample data is a real trigger event;
+- automatically retry side-effecting failures;
+- activate triggers.
+
+## Final Phase 5B verification
+
+Workflow:
+
+```text
+Draft Simulation Verification
+```
+
+Final run:
+
+```text
+36447180384
+```
+
+Verified implementation head:
+
+```text
+8fe40b6c61f605a75951f9ac2fde4386a31b02e8
+```
+
+Results:
+
+- `bun install --frozen-lockfile`: **PASS**
+- API build through Turborepo workspace dependency graph: **PASS**
   - **17/17 build tasks successful**
-- Focused typed ESLint: PASS
+- Focused typed ESLint: **PASS**
   - **0 errors**
-  - 3 non-blocking explicit-return-type warnings
-- Focused Vitest: PASS
-  - **2 test files passed**
-  - **14/14 tests passed**
+  - 7 non-blocking explicit-return-type warnings
+- Focused Vitest: **PASS**
+  - **4 test files passed**
+  - **33/33 tests passed**
   - 0 failed
 
-Verification caught and fixed:
+Verification coverage includes:
 
-1. `publishedVersionId` can be undefined in the Activepieces type surface; the adapter now normalizes it to null.
-2. Four test literals violated the repository single-quote lint rule.
-3. Validator extraction initially changed MCP wording; the original messages were restored before final verification.
+- shared flow-test orchestration;
+- Phase 5A draft validation regressions;
+- Automation Architect draft simulation;
+- existing MCP flow-run utility regressions;
+- version-drift refusal;
+- unsafe-artifact drift refusal;
+- TESTING-environment enforcement;
+- user-supplied mock labeling;
+- existing-sample labeling;
+- no-sample labeling;
+- timeout handling;
+- terminal failure/failed-step reporting;
+- no-test behavior for structurally invalid drafts.
 
-The temporary verification workflow was removed after the green run. Later commits are documentation/CI-cleanup only.
+The temporary branch-only verification workflow was removed after the green run.
+
+Commits after the verified implementation head are documentation / temporary-CI cleanup only.
 
 ## Current architecture
 
@@ -100,18 +281,31 @@ Natural-language planner
     ↓
 Automation IR V1
     ↓
-Capability discovery
+Project-scoped capability discovery
     ↓
-IR compiler
+Safe Activepieces compiler
     ↓
-DISABLED + unpublished draft
-    ↓
-Draft safety invariants
+DISABLED + unpublished DRAFT
     ↓
 Shared structural validation
     ↓
-VALIDATED_DRAFT / NEEDS_CONFIGURATION
+VALIDATED_DRAFT
+    ↓
+Safe TESTING simulation
+    ↓
+TEST_SUCCEEDED / TEST_FAILED / TEST_TIMEOUT
+    ↓
+NO activation yet
 ```
+
+## Verification milestones
+
+- Phase 2 Automation IR: **18/18 tests**
+- Phase 3 planner: **33/33 tests**
+- Phase 4A capability discovery: **17/17 tests**
+- Phase 4B IR compiler: **36/36 tests**
+- Phase 5A structural validation: **14/14 tests**
+- Phase 5B safe simulation: **33/33 focused/regression tests**
 
 ## Key decisions
 
@@ -122,64 +316,76 @@ VALIDATED_DRAFT / NEEDS_CONFIGURATION
 5. Connection choice is explicit and never guessed.
 6. Compiler fails rather than approximating unsupported semantics.
 7. Every generated runtime step passes Activepieces' normal operation validation.
-8. Generated artifacts remain draft + disabled.
+8. Generated artifacts remain draft + disabled until an explicit later activation boundary.
 9. Structural validation is shared with Activepieces MCP rather than duplicated.
-10. An enabled, published, or locked artifact is rejected by Automation Architect draft validation.
-11. Structural validation does not imply that external integrations have actually run.
-12. No publishing/activation path exists yet.
-13. Browser/ChatGPT automation remains outside the core MVP path.
-
-## Previous verification milestones
-
-- Phase 2 Automation IR: **18/18 tests**
-- Phase 3 planner: **33/33 tests**
-- Phase 4A capability discovery: **17/17 tests**
-- Phase 4B IR compiler: **33/33 tests**
-- Phase 5A structural validation: **14/14 tests**
+10. Flow-test orchestration is shared with MCP rather than duplicated.
+11. Validation and simulation are separate evidence layers.
+12. Simulation pins the exact validated draft version.
+13. Simulation re-checks artifact safety immediately before starting the test.
+14. Only TESTING-environment runs count as simulation.
+15. Mock/sample trigger evidence must never be promoted to real-event evidence.
+16. Timeout is distinct from failure.
+17. There is still no automatic publishing/activation path.
+18. Browser/ChatGPT automation remains outside the core MVP path.
 
 ## Risks / open boundaries
 
-- Structural validation is static; it cannot prove an external API call succeeds.
-- Existing traversal-order reference checks are not a replacement for full control-flow dominance analysis. Phase 4B already rejects unsafe non-dominating IR references before compilation.
-- Dynamic piece properties may still require runtime/property resolution.
-- A structurally safe draft can still fail during test execution.
-- Mock trigger data must never be reported as real trigger evidence.
-- Some trigger types may require interaction or real external events.
+- Dynamic piece properties can still require runtime/property resolution.
+- TEST_SUCCEEDED proves the tested draft execution path succeeded under the available test/sample context; it does not prove future external events will have identical payloads or external conditions.
+- Existing draft sample provenance cannot be proven as real-event evidence.
+- Some triggers require real external interactions that a local test cannot fully simulate.
 - AI decisions and approval gates still lack runtime semantics.
-- Manual trigger mapping remains unresolved.
-- No activation policy/enforcement path exists yet.
+- Branch joins remain unsupported by the Phase 4B compiler.
 - No production planner-model adapter is wired yet.
+- Schedule natural-language normalization remains a planner concern.
+- Approval policy exists as a contract but is not yet enforced at an activation boundary.
+- No activation audit record exists yet.
+- No runtime supervisor exists yet.
 
 ## Next phase
 
-**Phase 5B — Safe Draft Test / Simulation Service**
+**Phase 6A — Activation Readiness & Approval Enforcement**
 
-Goal: reuse/extract Activepieces flow-test orchestration so Automation Architect can test a validated draft without publishing or enabling it.
+Goal: create the deterministic safety boundary that decides whether a validated/simulated draft is eligible to be activated.
+
+This phase must **not activate flows yet**.
 
 Requirements:
 
-1. extract a reusable test service from the behavior currently in `mcp/tools/flow-run-utils.ts`;
-2. run the current **draft flow version** in the test environment;
-3. preserve project scoping;
-4. never publish or enable the flow;
-5. optionally accept explicit mock trigger data;
-6. persist mock data only as draft sample data;
-7. explicitly report:
-   - `usedMockTriggerData`;
-   - run ID;
-   - terminal status;
-   - failed step name;
-   - timeout/non-terminal result;
-8. distinguish:
-   - real/pre-existing trigger sample evidence;
-   - user-supplied mock data;
-9. return stable Automation Architect outcomes such as:
-   - `TEST_SUCCEEDED`;
-   - `TEST_FAILED`;
-   - `TEST_TIMEOUT`;
-   - `NEEDS_CONFIGURATION`;
-   - `FLOW_NOT_FOUND`;
-   - `UNSAFE_ARTIFACT`;
-10. add focused tests for timeout, failures, mock-data labeling, invalid trigger, unsafe artifact, and never-publish guarantees.
+1. define an activation-readiness input/result contract;
+2. require:
+   - safe unpublished draft;
+   - successful structural validation;
+   - successful/acceptable simulation evidence according to policy;
+   - unchanged/pinned `flowVersionId`;
+3. evaluate authoritative capability risks and project/user policy;
+4. determine:
+   - no approval required;
+   - explicit human approval required;
+   - activation denied;
+5. require approval for configured high-impact classes such as:
+   - external communication;
+   - sensitive mutation;
+   - destructive operations;
+   - financial operations;
+6. never accept planner/model text as proof of approval;
+7. represent approval as a durable, explicit record tied to:
+   - project;
+   - flow;
+   - exact flow version;
+   - policy/risk snapshot;
+   - approving user;
+   - timestamp;
+8. invalidate approval automatically if the flow version changes;
+9. expose stable states such as:
+   - `READY_FOR_APPROVAL`;
+   - `READY_TO_ACTIVATE`;
+   - `APPROVAL_REQUIRED`;
+   - `DENIED`;
+   - `STALE_VALIDATION`;
+   - `STALE_APPROVAL`;
+10. add focused tests for stale versions, risk-policy denial, approval requirements, and attempts to reuse approval for a changed draft.
 
-Do **not** add activation or publishing in Phase 5B.
+Do **not** call `LOCK_AND_PUBLISH` or `CHANGE_STATUS` in Phase 6A.
+
+After 6A is verified, **Phase 6B — Explicit Safe Activation** may add the smallest audited publish/enable path using the exact approved flow version.
