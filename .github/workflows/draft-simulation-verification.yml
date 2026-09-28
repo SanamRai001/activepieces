@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: draft-simulation-verification
+  group: draft-simulation-verification-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
