@@ -89,6 +89,29 @@ describe('activation readiness evaluator', () => {
         expect(result.riskDigest).toHaveLength(64)
     })
 
+    it('fails closed for contradictory activation policy', () => {
+        const result = evaluateActivationReadiness({
+            flowId,
+            projectId,
+            expectedFlowVersionId: versionId,
+            simulationRunId: runId,
+            policy: {
+                ...policy,
+                riskPolicy: {
+                    ...baseRiskPolicy,
+                    requireApprovalFor: ['DESTRUCTIVE'],
+                    deny: ['DESTRUCTIVE'],
+                },
+            },
+            validation,
+            simulation,
+            riskSnapshot: writeRisk,
+            approval: null,
+        })
+        expect(result.status).toBe('DENIED')
+        expect(result.reasons?.[0]).toContain('policy is invalid')
+    })
+
     it('denies risk classes forbidden by policy', () => {
         const result = evaluateActivationReadiness({
             flowId,
