@@ -13,11 +13,12 @@ human automation problem
 → safe draft compiler
 → structural validation
 → safe simulation
-→ approval-controlled activation
+→ activation readiness + durable approval
+→ explicit safe activation
 → runtime supervision
 ```
 
-The system must prefer deterministic behavior where possible, keep model output non-authoritative for safety-sensitive facts, and preserve human control over high-impact actions.
+The model may propose. Deterministic code and explicit human authorization control safety-sensitive actions.
 
 ## Repository
 
@@ -30,247 +31,17 @@ The system must prefer deterministic behavior where possible, keep model output 
 - Capability discovery: `feat/activepieces-capability-discovery` — PR #5
 - IR compiler: `feat/activepieces-ir-compiler` — PR #6
 - Structural validation: `feat/draft-structural-validation` — PR #7
-- Working branch: `feat/draft-safe-simulation` — PR #8
+- Safe simulation: `feat/draft-safe-simulation` — PR #8
+- Working branch: `feat/activation-readiness-approval` — PR #9
 - PR #3 is superseded/closed.
 
 ## Completed phase
 
-**Phase 5B — Safe Draft Test / Simulation Service**
+**Phase 6A — Activation Readiness & Approval Enforcement**
 
-Phase 5 is now complete.
+Phase 6A adds the deterministic safety boundary that decides whether an exact generated draft is eligible for a later activation operation.
 
-A generated Automation Architect flow can now move through:
-
-```text
-Automation IR
-    ↓
-Activepieces draft compiler
-    ↓
-DISABLED + unpublished DRAFT
-    ↓
-shared structural validation
-    ↓
-VALIDATED_DRAFT
-    ↓
-safe TESTING-environment simulation
-    ↓
-TEST_SUCCEEDED / TEST_FAILED / TEST_TIMEOUT
-```
-
-No activation/publishing path exists yet.
-
-## Phase 5B changes
-
-### Shared flow-test orchestration
-
-Extracted reusable test orchestration into:
-
-```text
-packages/server/api/src/app/flows/testing/flow-test-orchestration.service.ts
-```
-
-Both Automation Architect and MCP now use the same underlying flow-test behavior.
-
-The shared service:
-
-- loads the flow in project scope;
-- optionally pins an expected `flowVersionId`;
-- can require a disabled + unpublished + DRAFT artifact;
-- rejects unconfigured triggers;
-- rejects unknown requested steps;
-- records invalid full-flow steps for diagnostics;
-- optionally saves explicit mock trigger data as draft sample data;
-- re-checks artifact safety immediately before execution;
-- invokes the existing Activepieces test runner;
-- accepts only `RunEnvironment.TESTING`;
-- polls for terminal completion with a bounded timeout;
-- returns stable machine-readable results.
-
-### Exact draft version pinning
-
-Automation Architect first validates the draft through Phase 5A and then passes that exact:
-
-```text
-flowVersionId
-```
-
-to the simulation service.
-
-If the draft version changes between validation and execution:
-
-```text
-FLOW_VERSION_CHANGED
-```
-
-is returned and the test is refused.
-
-This closes a time-of-check/time-of-use gap between validation and simulation.
-
-### Draft-state revalidation
-
-Immediately before the runtime test starts, the shared service re-loads the flow when Automation Architect requests the draft-only guard.
-
-Simulation is refused unless:
-
-```text
-flow.status === DISABLED
-publishedVersionId === null
-flow.version.state === DRAFT
-```
-
-If the artifact became enabled, published, locked, deleted, or replaced by another draft version, Automation Architect refuses execution.
-
-### Test-environment enforcement
-
-The started run and terminal run must both satisfy:
-
-```text
-environment === TESTING
-```
-
-Any non-TESTING result becomes:
-
-```text
-UNSAFE_TEST_RUN
-```
-
-Automation Architect maps this to:
-
-```text
-UNSAFE_ARTIFACT
-```
-
-and does not treat the result as valid simulation evidence.
-
-### Trigger-data provenance
-
-Simulation now reports one of:
-
-```text
-USER_SUPPLIED_MOCK
-EXISTING_DRAFT_SAMPLE
-NO_TRIGGER_SAMPLE
-```
-
-#### USER_SUPPLIED_MOCK
-
-The caller explicitly supplied trigger payload.
-
-It is saved only as draft sample data and must never be described as real-event verification.
-
-#### EXISTING_DRAFT_SAMPLE
-
-The flow already had trigger sample data.
-
-Its provenance is unknown, so Automation Architect must not claim it came from a real external trigger event.
-
-#### NO_TRIGGER_SAMPLE
-
-No trigger sample file is attached.
-
-The test runner may therefore execute with an empty/no trigger payload depending on trigger behavior.
-
-### Stable Automation Architect simulation outcomes
-
-Automation Architect exposes:
-
-```text
-TEST_SUCCEEDED
-TEST_FAILED
-TEST_TIMEOUT
-NEEDS_CONFIGURATION
-FLOW_NOT_FOUND
-UNSAFE_ARTIFACT
-```
-
-Terminal engine `TIMEOUT` is mapped to `TEST_TIMEOUT`.
-
-A polling deadline that expires while the run remains non-terminal is also `TEST_TIMEOUT`; it is not misreported as a test failure.
-
-### MCP compatibility
-
-`executeFlowTest(...)` in:
-
-```text
-mcp/tools/flow-run-utils.ts
-```
-
-now delegates runtime orchestration to the shared flow-test service.
-
-MCP retains its human-facing:
-
-- warnings;
-- trigger-shape hint;
-- output formatting;
-- timeout guidance;
-- internal-error messaging.
-
-This avoids maintaining a separate Automation Architect test runner.
-
-### Safety boundary
-
-Phase 5B does not:
-
-- publish;
-- enable a flow;
-- change flow status;
-- run production environment intentionally;
-- claim mock/sample data is a real trigger event;
-- automatically retry side-effecting failures;
-- activate triggers.
-
-## Final Phase 5B verification
-
-Workflow:
-
-```text
-Draft Simulation Verification
-```
-
-Final run:
-
-```text
-36447180384
-```
-
-Verified implementation head:
-
-```text
-8fe40b6c61f605a75951f9ac2fde4386a31b02e8
-```
-
-Results:
-
-- `bun install --frozen-lockfile`: **PASS**
-- API build through Turborepo workspace dependency graph: **PASS**
-  - **17/17 build tasks successful**
-- Focused typed ESLint: **PASS**
-  - **0 errors**
-  - 7 non-blocking explicit-return-type warnings
-- Focused Vitest: **PASS**
-  - **4 test files passed**
-  - **33/33 tests passed**
-  - 0 failed
-
-Verification coverage includes:
-
-- shared flow-test orchestration;
-- Phase 5A draft validation regressions;
-- Automation Architect draft simulation;
-- existing MCP flow-run utility regressions;
-- version-drift refusal;
-- unsafe-artifact drift refusal;
-- TESTING-environment enforcement;
-- user-supplied mock labeling;
-- existing-sample labeling;
-- no-sample labeling;
-- timeout handling;
-- terminal failure/failed-step reporting;
-- no-test behavior for structurally invalid drafts.
-
-The temporary branch-only verification workflow was removed after the green run.
-
-Commits after the verified implementation head are documentation / temporary-CI cleanup only.
+It still does **not** publish or enable flows.
 
 ## Current architecture
 
@@ -293,10 +64,188 @@ VALIDATED_DRAFT
     ↓
 Safe TESTING simulation
     ↓
-TEST_SUCCEEDED / TEST_FAILED / TEST_TIMEOUT
+Activation readiness
+    ↓
+authoritative risk + deterministic policy
+    ↓
+durable human approval when required
+    ↓
+READY_TO_ACTIVATE
     ↓
 NO activation yet
 ```
+
+## Phase 6A changes
+
+### Activation-readiness contract
+
+Stable readiness outcomes include:
+
+- `READY_TO_ACTIVATE`
+- `APPROVAL_REQUIRED`
+- `DENIED`
+- `STALE_VALIDATION`
+- `STALE_APPROVAL`
+- `SIMULATION_REQUIRED`
+- `SIMULATION_FAILED`
+- `NEEDS_CONFIGURATION`
+- `FLOW_NOT_FOUND`
+- `UNSAFE_ARTIFACT`
+
+### Fresh draft validation
+
+Readiness reuses Phase 5A draft validation.
+
+The draft must still be:
+
+```text
+DISABLED
+unpublished
+DRAFT
+```
+
+The exact validated `flowVersionId` must equal the version being considered for activation.
+
+### Verified simulation evidence
+
+When policy requires successful simulation, Phase 6A re-reads the persisted flow run.
+
+Evidence must match:
+
+- simulation run id;
+- project;
+- flow;
+- exact flow version;
+- `RunEnvironment.TESTING`;
+- `FlowRunStatus.SUCCEEDED`.
+
+Model/planner text cannot claim simulation success.
+
+### Authoritative risk re-resolution
+
+Current piece actions are re-resolved from project-scoped Activepieces metadata at readiness time.
+
+Risk mapping remains conservative:
+
+- READ / SEARCH → `READ_ONLY`
+- WRITE → `SENSITIVE_MUTATION`
+- DESTRUCTIVE → `DESTRUCTIVE`
+- missing/unknown → `SENSITIVE_MUTATION`
+
+An unconfigured piece action is rejected during risk resolution rather than indexed with an undefined action name.
+
+### Deterministic policy
+
+The provider-neutral `AutomationPolicySchema` is validated at runtime.
+
+Contradictory or malformed policy fails closed.
+
+Policy may:
+
+- allow;
+- require explicit approval;
+- deny.
+
+A denied risk class cannot be bypassed by approval.
+
+### Durable approval evidence
+
+Added immutable `automation_activation_approval` records containing:
+
+- project id;
+- flow id;
+- exact flow version id;
+- approving user id;
+- approval timestamp;
+- simulation run id when applicable;
+- normalized policy snapshot;
+- normalized risk snapshot;
+- SHA-256 policy digest;
+- SHA-256 risk digest.
+
+Approvals automatically become stale when the current:
+
+- flow version;
+- required simulation;
+- policy;
+- risk snapshot
+
+no longer matches the stored evidence.
+
+### Persistence
+
+Added the activation-approval entity and PostgreSQL migration.
+
+The migration is registered in the normal PostgreSQL migration list, which PGlite also reuses outside testing mode.
+
+### Human identity boundary
+
+Phase 6A has no public approval HTTP endpoint.
+
+`approvedByUserId` must come from a trusted authenticated/authorized caller.
+
+A later activation surface must never accept an arbitrary model-supplied or client-supplied user id as proof of human approval.
+
+### No activation operations
+
+Phase 6A contains no:
+
+- `LOCK_AND_PUBLISH`;
+- `CHANGE_STATUS`;
+- flow enablement;
+- trigger activation;
+- production execution API.
+
+## Final Phase 6A verification
+
+Workflow:
+
+```text
+Activation Readiness Verification
+```
+
+Final run:
+
+```text
+36461682305
+```
+
+Verified implementation head:
+
+```text
+6b769826bec8fbd81faa0cef04cf3bc51a23981d
+```
+
+Results:
+
+- `bun install --frozen-lockfile`: **PASS**
+- API build through Turborepo: **PASS**
+  - **17/17 build tasks successful**
+- Focused typed ESLint: **PASS**
+  - **0 errors**
+  - 10 non-blocking warnings
+- Focused Vitest: **PASS**
+  - **3 test files passed**
+  - **36/36 tests passed**
+  - 0 failed
+
+The final test run includes:
+
+- Phase 6A activation-readiness/approval tests;
+- Phase 5A draft-validation regressions;
+- Phase 5B draft-simulation regressions.
+
+The verification process also caught and fixed:
+
+- unsafe indexing of an unset piece `actionName`;
+- overly broad simulation evidence string types;
+- import-order/style errors.
+
+Simulation evidence now uses Activepieces' real `RunEnvironment` and `FlowRunStatus` types.
+
+The temporary branch-only verification workflow was removed after the green run.
+
+Commits after the verified implementation head are documentation / temporary-CI cleanup only.
 
 ## Verification milestones
 
@@ -306,86 +255,72 @@ NO activation yet
 - Phase 4B IR compiler: **36/36 tests**
 - Phase 5A structural validation: **14/14 tests**
 - Phase 5B safe simulation: **33/33 focused/regression tests**
+- Phase 6A readiness/approval + Phase 5 regressions: **36/36 tests**
 
 ## Key decisions
 
 1. Activepieces remains the runtime; Automation Architect remains the intelligence/safety layer.
 2. The model proposes; deterministic code validates safety-sensitive facts.
 3. User intent remains authoritative.
-4. Capabilities are project-scoped and re-resolved at compile time.
+4. Capabilities and risk are re-resolved from current project-scoped metadata.
 5. Connection choice is explicit and never guessed.
-6. Compiler fails rather than approximating unsupported semantics.
-7. Every generated runtime step passes Activepieces' normal operation validation.
-8. Generated artifacts remain draft + disabled until an explicit later activation boundary.
-9. Structural validation is shared with Activepieces MCP rather than duplicated.
-10. Flow-test orchestration is shared with MCP rather than duplicated.
-11. Validation and simulation are separate evidence layers.
-12. Simulation pins the exact validated draft version.
-13. Simulation re-checks artifact safety immediately before starting the test.
-14. Only TESTING-environment runs count as simulation.
-15. Mock/sample trigger evidence must never be promoted to real-event evidence.
-16. Timeout is distinct from failure.
-17. There is still no automatic publishing/activation path.
-18. Browser/ChatGPT automation remains outside the core MVP path.
+6. Every generated runtime step passes Activepieces' native operation validation.
+7. Generated artifacts remain draft + disabled until an explicit activation boundary.
+8. Structural validation and flow-test orchestration are shared with Activepieces rather than duplicated.
+9. Simulation evidence is version-bound and must come from TESTING runs.
+10. Approval is immutable evidence, not a mutable boolean.
+11. Approval is bound to exact flow version, policy, risk, and required simulation evidence.
+12. Planner/model text is never approval.
+13. Policy denial overrides approval.
+14. No activation/publishing exists in Phase 6A.
+15. Browser/ChatGPT automation remains outside the core MVP path.
 
 ## Risks / open boundaries
 
+- `READY_TO_ACTIVATE` is readiness evidence, not activation itself.
+- Phase 6B must re-assess readiness immediately before mutating flow state to close the final time-of-check/time-of-use gap.
+- Phase 6B must authenticate and authorize the human actor; an arbitrary `approvedByUserId` must never be accepted from model output.
 - Dynamic piece properties can still require runtime/property resolution.
-- TEST_SUCCEEDED proves the tested draft execution path succeeded under the available test/sample context; it does not prove future external events will have identical payloads or external conditions.
-- Existing draft sample provenance cannot be proven as real-event evidence.
-- Some triggers require real external interactions that a local test cannot fully simulate.
-- AI decisions and approval gates still lack runtime semantics.
+- TEST_SUCCEEDED proves only the tested context, not future external conditions.
+- Some triggers require real external interactions that test execution cannot fully reproduce.
+- AI decisions and approval-gate IR steps still lack runtime compilation semantics.
 - Branch joins remain unsupported by the Phase 4B compiler.
 - No production planner-model adapter is wired yet.
 - Schedule natural-language normalization remains a planner concern.
-- Approval policy exists as a contract but is not yet enforced at an activation boundary.
-- No activation audit record exists yet.
 - No runtime supervisor exists yet.
 
 ## Next phase
 
-**Phase 6A — Activation Readiness & Approval Enforcement**
+**Phase 6B — Explicit Safe Activation**
 
-Goal: create the deterministic safety boundary that decides whether a validated/simulated draft is eligible to be activated.
-
-This phase must **not activate flows yet**.
+Goal: add the smallest audited publish/enable path that consumes Phase 6A readiness evidence for the exact approved flow version.
 
 Requirements:
 
-1. define an activation-readiness input/result contract;
-2. require:
-   - safe unpublished draft;
-   - successful structural validation;
-   - successful/acceptable simulation evidence according to policy;
-   - unchanged/pinned `flowVersionId`;
-3. evaluate authoritative capability risks and project/user policy;
-4. determine:
-   - no approval required;
-   - explicit human approval required;
-   - activation denied;
-5. require approval for configured high-impact classes such as:
-   - external communication;
-   - sensitive mutation;
-   - destructive operations;
-   - financial operations;
-6. never accept planner/model text as proof of approval;
-7. represent approval as a durable, explicit record tied to:
+1. expose an explicit activation service/action only;
+2. require an authenticated and authorized human actor;
+3. re-run Phase 6A readiness immediately before activation;
+4. require the same exact `flowVersionId`;
+5. require valid durable approval when policy demands it;
+6. refuse stale validation, simulation, policy, risk, or approval;
+7. publish/lock only the exact approved draft version;
+8. enable only after publish succeeds and safety invariants are re-checked;
+9. create an immutable activation audit record containing:
    - project;
    - flow;
-   - exact flow version;
-   - policy/risk snapshot;
-   - approving user;
+   - activated flow version;
+   - actor;
+   - approval id when applicable;
+   - readiness evidence/digests;
    - timestamp;
-8. invalidate approval automatically if the flow version changes;
-9. expose stable states such as:
-   - `READY_FOR_APPROVAL`;
-   - `READY_TO_ACTIVATE`;
-   - `APPROVAL_REQUIRED`;
-   - `DENIED`;
-   - `STALE_VALIDATION`;
-   - `STALE_APPROVAL`;
-10. add focused tests for stale versions, risk-policy denial, approval requirements, and attempts to reuse approval for a changed draft.
+10. make failure atomic or explicitly recoverable if publish succeeds but enable fails;
+11. add focused tests for:
+   - stale draft between readiness and activation;
+   - missing/invalid approval;
+   - unauthorized actor;
+   - publish failure;
+   - enable failure;
+   - successful audited activation;
+12. do not add autonomous activation from planner/model output.
 
-Do **not** call `LOCK_AND_PUBLISH` or `CHANGE_STATUS` in Phase 6A.
-
-After 6A is verified, **Phase 6B — Explicit Safe Activation** may add the smallest audited publish/enable path using the exact approved flow version.
+After Phase 6B, proceed to runtime supervision rather than broadening activation behavior.
