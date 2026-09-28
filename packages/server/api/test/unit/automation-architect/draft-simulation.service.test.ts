@@ -275,11 +275,13 @@ describe('Automation draft simulation service', () => {
         expect(tested).toBe(false)
     })
 
-    it('passes the validated version id into the runtime test', async () => {
+    it('passes the validated version id and draft-only guard into the runtime test', async () => {
         let expectedVersion: string | undefined
+        let requiredDraft: boolean | undefined
         const service = createAutomationDraftSimulationService(dependencies({
             testDraft: async (params) => {
                 expectedVersion = params.expectedFlowVersionId
+                requiredDraft = params.requireUnpublishedDraft
                 return {
                     status: 'TEST_COMPLETED',
                     flowId: 'flow-1',
@@ -299,5 +301,24 @@ describe('Automation draft simulation service', () => {
         })
 
         expect(expectedVersion).toBe('version-1')
+        expect(requiredDraft).toBe(true)
+    })
+
+    it('maps an unsafe flow artifact detected by the test boundary', async () => {
+        const service = createAutomationDraftSimulationService(dependencies({
+            testDraft: async () => ({
+                status: 'UNSAFE_FLOW_ARTIFACT',
+                flowId: 'flow-1',
+                flowVersionId: 'version-1',
+            }),
+        }))
+
+        const result = await service.simulate({
+            flowId: 'flow-1',
+            projectId: 'project-1',
+        })
+
+        expect(result.status).toBe('UNSAFE_ARTIFACT')
+        expect(result.reasons?.[0]).toContain('no longer a disabled, unpublished draft')
     })
 })
