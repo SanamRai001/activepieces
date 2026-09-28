@@ -3,6 +3,8 @@ import {
     FlowOperationType,
     FlowRun,
     FlowRunStatus,
+    FlowStatus,
+    FlowVersionState,
     flowStructureUtil,
     isFlowRunStateTerminal,
     RunEnvironment,
@@ -28,6 +30,7 @@ export type FlowTestOrchestrationStatus =
     | 'TRIGGER_NOT_CONFIGURED'
     | 'STEP_NOT_FOUND'
     | 'FLOW_VERSION_CHANGED'
+    | 'UNSAFE_FLOW_ARTIFACT'
     | 'UNSAFE_TEST_RUN'
     | 'TEST_TIMEOUT'
     | 'TEST_COMPLETED'
@@ -49,8 +52,11 @@ export type FlowTestOrchestrationResult = {
 
 type FlowTestFlowSnapshot = {
     id: string
+    status: FlowStatus
+    publishedVersionId: string | null
     version: {
         id: string
+        state: FlowVersionState
         trigger: Step
     }
 }
@@ -92,6 +98,7 @@ export function createFlowTestOrchestrationService(
             stepName?: string
             triggerTestData?: Record<string, unknown>
             expectedFlowVersionId?: string
+            requireUnpublishedDraft?: boolean
         }): Promise<FlowTestOrchestrationResult> {
             let flow = await dependencies.getFlow({
                 flowId: params.flowId,
@@ -111,6 +118,17 @@ export function createFlowTestOrchestrationService(
             ) {
                 return {
                     status: 'FLOW_VERSION_CHANGED',
+                    flowId: flow.id,
+                    flowVersionId: flow.version.id,
+                }
+            }
+
+            if (
+                params.requireUnpublishedDraft === true
+                && !isSafeUnpublishedDraft(flow)
+            ) {
+                return {
+                    status: 'UNSAFE_FLOW_ARTIFACT',
                     flowId: flow.id,
                     flowVersionId: flow.version.id,
                 }
@@ -176,6 +194,44 @@ export function createFlowTestOrchestrationService(
                         usedMockTriggerData,
                     }
                 }
+
+                if (
+                    params.requireUnpublishedDraft === true
+                    && !isSafeUnpublishedDraft(flow)
+                ) {
+                    return {
+                        status: 'UNSAFE_FLOW_ARTIFACT',
+                        flowId: flow.id,
+                        flowVersionId: flow.version.id,
+                        triggerDataSource,
+                        usedMockTriggerData,
+                    }
+                }
+            }
+
+            if (params.requireUnpublishedDraft === true) {
+                const latest = await dependencies.getFlow({
+                    flowId: flow.id,
+                    projectId: params.projectId,
+                })
+                if (
+                    latest === null
+                    || latest.version.id !== flow.version.id
+                    || !isSafeUnpublishedDraft(latest)
+                ) {
+                    return {
+                        status: latest === null
+                            ? 'FLOW_NOT_FOUND'
+                            : latest.version.id !== flow.version.id
+                                ? 'FLOW_VERSION_CHANGED'
+                                : 'UNSAFE_FLOW_ARTIFACT',
+                        flowId: flow.id,
+                        flowVersionId: latest?.version.id ?? flow.version.id,
+                        triggerDataSource,
+                        usedMockTriggerData,
+                    }
+                }
+                flow = latest
             }
 
             const startedRun = await dependencies.startTest({
@@ -262,8 +318,11 @@ export const flowTestOrchestrationService = (
         }
         return {
             id: flow.id,
+            status: flow.status,
+            publishedVersionId: flow.publishedVersionId ?? null,
             version: {
                 id: flow.version.id,
+                state: flow.version.state,
                 trigger: flow.version.trigger,
             },
         }
@@ -309,8 +368,11 @@ export const flowTestOrchestrationService = (
             })
             return {
                 id: updated.id,
+                status: updated.status,
+                publishedVersionId: updated.publishedVersionId ?? null,
                 version: {
                     id: updated.version.id,
+                    state: updated.version.state,
                     trigger: updated.version.trigger,
                 },
             }
@@ -365,6 +427,12 @@ async function pollForRunCompletion(params: {
         runId: params.initialRun.id,
         projectId: params.projectId,
     })
+}
+
+function isSafeUnpublishedDraft(flow: FlowTestFlowSnapshot): boolean {
+    return flow.status === FlowStatus.DISABLED
+        && flow.publishedVersionId === null
+        && flow.version.state === FlowVersionState.DRAFT
 }
 
 function hasTriggerSample(trigger: Step): boolean {
