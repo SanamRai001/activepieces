@@ -70,6 +70,19 @@ export function evaluateActivationReadiness(
         }
     }
 
+    if (typeof params.policy.requireSuccessfulSimulation !== 'boolean') {
+        return {
+            status: 'DENIED',
+            flowId: params.flowId,
+            reasons: ['Activation simulation policy is invalid.'],
+        }
+    }
+
+    const validatedPolicy: AutomationActivationPolicy = {
+        ...params.policy,
+        riskPolicy: policyValidation.data,
+    }
+
     const validationResult = mapValidation(params.validation)
     if (validationResult !== null) {
         return validationResult
@@ -85,7 +98,7 @@ export function evaluateActivationReadiness(
         }
     }
 
-    if (params.policy.requireSuccessfulSimulation) {
+    if (validatedPolicy.requireSuccessfulSimulation) {
         if (params.simulationRunId === undefined || params.simulation === null || params.simulation === undefined) {
             return {
                 status: 'SIMULATION_REQUIRED',
@@ -112,7 +125,7 @@ export function evaluateActivationReadiness(
         }
     }
 
-    const normalizedPolicy = normalizePolicy(params.policy)
+    const normalizedPolicy = normalizePolicy(validatedPolicy)
     const normalizedRisks = normalizeRisks(params.riskSnapshot)
     const denied = new Set(normalizedPolicy.riskPolicy.deny)
     const approvalRequired = new Set(normalizedPolicy.riskPolicy.requireApprovalFor)
@@ -166,6 +179,10 @@ export function evaluateActivationReadiness(
         || params.approval.flowVersionId !== currentVersionId
         || params.approval.policyDigest !== policyDigest
         || params.approval.riskDigest !== riskDigest
+        || (
+            validatedPolicy.requireSuccessfulSimulation
+            && params.approval.simulationRunId !== params.simulationRunId
+        )
     ) {
         return {
             status: 'STALE_APPROVAL',
