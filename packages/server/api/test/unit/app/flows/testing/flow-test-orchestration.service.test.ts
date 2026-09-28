@@ -2,7 +2,9 @@ import {
     FlowActionType,
     FlowRun,
     FlowRunStatus,
+    FlowStatus,
     FlowTriggerType,
+    FlowVersionState,
     RunEnvironment,
     Step,
 } from '@activepieces/shared'
@@ -89,15 +91,21 @@ function dependencies(
     return {
         getFlow: async () => ({
             id: 'flow-1',
+            status: FlowStatus.DISABLED,
+            publishedVersionId: null,
             version: {
                 id: 'version-1',
+                state: FlowVersionState.DRAFT,
                 trigger: trigger(),
             },
         }),
         saveMockTriggerData: async () => ({
             id: 'flow-1',
+            status: FlowStatus.DISABLED,
+            publishedVersionId: null,
             version: {
                 id: 'version-1',
+                state: FlowVersionState.DRAFT,
                 trigger: trigger({ withSample: true }),
             },
         }),
@@ -127,8 +135,11 @@ describe('flow test orchestration service', () => {
         const service = createFlowTestOrchestrationService(dependencies({
             getFlow: async () => ({
                 id: 'flow-1',
+                status: FlowStatus.DISABLED,
+                publishedVersionId: null,
                 version: {
                     id: 'version-1',
+                    state: FlowVersionState.DRAFT,
                     trigger: trigger({ valid: false }),
                 },
             }),
@@ -213,8 +224,11 @@ describe('flow test orchestration service', () => {
         const service = createFlowTestOrchestrationService(dependencies({
             getFlow: async () => ({
                 id: 'flow-1',
+                status: FlowStatus.DISABLED,
+                publishedVersionId: null,
                 version: {
                     id: 'version-1',
+                    state: FlowVersionState.DRAFT,
                     trigger: trigger({ withSample: true }),
                 },
             }),
@@ -281,6 +295,41 @@ describe('flow test orchestration service', () => {
         expect(result.failedStepName).toBe('step_1')
     })
 
+    it('refuses to start when an unpublished draft becomes unsafe before execution', async () => {
+        let reads = 0
+        let started = false
+        const service = createFlowTestOrchestrationService(dependencies({
+            getFlow: async () => {
+                reads += 1
+                return {
+                    id: 'flow-1',
+                    status: reads === 1 ? FlowStatus.DISABLED : FlowStatus.ENABLED,
+                    publishedVersionId: reads === 1 ? null : 'version-1',
+                    version: {
+                        id: 'version-1',
+                        state: reads === 1 ? FlowVersionState.DRAFT : FlowVersionState.LOCKED,
+                        trigger: trigger(),
+                    },
+                }
+            },
+            startTest: async () => {
+                started = true
+                return run(FlowRunStatus.SUCCEEDED)
+            },
+        }))
+
+        const result = await service.test({
+            flowId: 'flow-1',
+            projectId: 'project-1',
+            expectedFlowVersionId: 'version-1',
+            requireUnpublishedDraft: true,
+        })
+
+        expect(result.status).toBe('UNSAFE_FLOW_ARTIFACT')
+        expect(started).toBe(false)
+        expect(reads).toBe(2)
+    })
+
     it('rejects a non-testing runtime result', async () => {
         const service = createFlowTestOrchestrationService(dependencies({
             startTest: async () => run(FlowRunStatus.SUCCEEDED, {
@@ -300,8 +349,11 @@ describe('flow test orchestration service', () => {
         const service = createFlowTestOrchestrationService(dependencies({
             getFlow: async () => ({
                 id: 'flow-1',
+                status: FlowStatus.DISABLED,
+                publishedVersionId: null,
                 version: {
                     id: 'version-1',
+                    state: FlowVersionState.DRAFT,
                     trigger: trigger({
                         nextAction: action(false),
                     }),
