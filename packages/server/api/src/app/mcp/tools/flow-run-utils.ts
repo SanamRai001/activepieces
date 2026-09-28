@@ -60,6 +60,14 @@ export async function executeFlowTest({ flowId, projectId, userId, stepName, tri
                 }],
                 isError: true,
             }
+        case 'UNSAFE_FLOW_ARTIFACT':
+            return {
+                content: [{
+                    type: 'text',
+                    text: '❌ Test safety check failed because the flow is no longer a safe unpublished draft.',
+                }],
+                isError: true,
+            }
         case 'UNSAFE_TEST_RUN':
             return {
                 content: [{
