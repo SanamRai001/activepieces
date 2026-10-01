@@ -447,6 +447,7 @@ import { AddFlowTombstoneIndex1856000000000 } from './migration/postgres/1856000
 import { AddWaitpointDeadLetteredAt1857000000000 } from './migration/postgres/1857000000000-AddWaitpointDeadLetteredAt'
 import { AddAutomationActivationApproval1858000000000 } from './migration/postgres/1858000000000-AddAutomationActivationApproval'
 import { AddAutomationActivationAuditAndRevision1859000000000 } from './migration/postgres/1859000000000-AddAutomationActivationAuditAndRevision'
+import { AddAutomationRuntimeSupervision1860000000000 } from './migration/postgres/1860000000000-AddAutomationRuntimeSupervision'
 
 const getSslConfig = (): boolean | TlsOptions => {
     const useSsl = system.get(AppSystemProp.POSTGRES_USE_SSL)
@@ -909,6 +910,7 @@ export const getMigrations = (): (new () => Migration)[] => {
         AddWaitpointDeadLetteredAt1857000000000,
         AddAutomationActivationApproval1858000000000,
         AddAutomationActivationAuditAndRevision1859000000000,
+        AddAutomationRuntimeSupervision1860000000000,
     ]
     return migrations
 }
