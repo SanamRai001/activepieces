@@ -10,10 +10,6 @@ export type AutomationActivationAuditEvent =
     | 'PUBLISHED_NOT_ENABLED'
 
 export type AutomationActivationAudit = {
-    project: Project
-    flow: Flow
-    flowVersion: FlowVersion
-    approval?: import('./activation-approval.entity').AutomationActivationApproval | null
     id: string
     created: string
     updated: string
@@ -31,7 +27,14 @@ export type AutomationActivationAudit = {
     failureReason: string | null
 }
 
-export const AutomationActivationAuditEntity = new EntitySchema<AutomationActivationAudit>({
+type AutomationActivationAuditSchema = AutomationActivationAudit & {
+    project: Project
+    flow: Flow
+    flowVersion: FlowVersion
+    approval?: import('./activation-approval.entity').AutomationActivationApproval | null
+}
+
+export const AutomationActivationAuditEntity = new EntitySchema<AutomationActivationAuditSchema>({
     name: 'automation_activation_audit',
     columns: {
         ...BaseColumnSchemaPart,
