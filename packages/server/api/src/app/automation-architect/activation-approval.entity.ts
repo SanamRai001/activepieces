@@ -1,4 +1,5 @@
 import type { AutomationPolicy, AutomationRiskClass } from '@activepieces/automation-architect'
+import type { Flow, FlowVersion, Project } from '@activepieces/shared'
 import { EntitySchema } from 'typeorm'
 import { ApIdSchema, BaseColumnSchemaPart } from '../database/database-common'
 
@@ -16,6 +17,9 @@ export type AutomationActivationPolicySnapshot = {
 }
 
 export type AutomationActivationApproval = {
+    project: Project
+    flow: Flow
+    flowVersion: FlowVersion
     id: string
     created: string
     updated: string
@@ -97,5 +101,33 @@ export const AutomationActivationApprovalEntity = new EntitySchema<AutomationAct
             columns: ['approvedByUserId', 'created'],
         },
     ],
-    relations: {},
+    relations: {
+        project: {
+            type: 'many-to-one',
+            target: 'project',
+            onDelete: 'CASCADE',
+            joinColumn: {
+                name: 'projectId',
+                foreignKeyConstraintName: 'fk_automation_activation_approval_project',
+            },
+        },
+        flow: {
+            type: 'many-to-one',
+            target: 'flow',
+            onDelete: 'CASCADE',
+            joinColumn: {
+                name: 'flowId',
+                foreignKeyConstraintName: 'fk_automation_activation_approval_flow',
+            },
+        },
+        flowVersion: {
+            type: 'many-to-one',
+            target: 'flow_version',
+            onDelete: 'CASCADE',
+            joinColumn: {
+                name: 'flowVersionId',
+                foreignKeyConstraintName: 'fk_automation_activation_approval_flow_version',
+            },
+        },
+    },
 })
