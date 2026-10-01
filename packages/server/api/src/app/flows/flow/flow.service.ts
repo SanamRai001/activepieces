@@ -480,6 +480,7 @@ export const flowService = (log: FastifyBaseLogger) => ({
         userId,
         projectId,
         platformId,
+        expectedDraft,
     }: UpdatePublishedVersionIdParams): Promise<PopulatedFlow> {
         const flowToUpdate = await this.getOneOrThrow({ id, projectId })
 
