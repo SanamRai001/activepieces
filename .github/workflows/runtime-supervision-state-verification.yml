@@ -1,0 +1,61 @@
+name: Runtime Supervision State Verification
+
+on:
+  push:
+    branches:
+      - feat/runtime-supervision-state
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runtime-supervision-state-verification
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: feat/runtime-supervision-state
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: Install repository dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build API with workspace dependencies
+        run: bunx turbo run build --filter=api
+
+      - name: Lint runtime supervision changes
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: |
+          bunx eslint \
+            'packages/server/api/src/app/automation-architect/runtime-supervision.entity.ts' \
+            'packages/server/api/src/app/automation-architect/runtime-supervision.ts' \
+            'packages/server/api/src/app/automation-architect/runtime-supervision.service.ts' \
+            'packages/server/api/src/app/automation-architect/automation-architect.module.ts' \
+            'packages/server/api/src/app/database/database-connection.ts' \
+            'packages/server/api/src/app/database/postgres-connection.ts' \
+            'packages/server/api/src/app/database/migration/postgres/1860000000000-AddAutomationRuntimeSupervision.ts' \
+            'packages/server/api/test/unit/automation-architect/runtime-supervision.test.ts'
+
+      - name: Test supervision and activation regressions
+        working-directory: packages/server/api
+        run: |
+          bunx vitest run \
+            test/unit/automation-architect/runtime-supervision.test.ts \
+            test/unit/automation-architect/activation.service.test.ts \
+            test/unit/automation-architect/activation-readiness.test.ts
+
+      - name: Check database migration/schema alignment
+        run: bunx turbo run check-migrations --filter=api

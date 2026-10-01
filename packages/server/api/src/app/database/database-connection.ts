@@ -9,6 +9,7 @@ import { PlatformAnalyticsReportEntity } from '../analytics/platform-analytics-r
 import { AppConnectionEntity } from '../app-connection/app-connection.entity'
 import { AutomationActivationApprovalEntity } from '../automation-architect/activation-approval.entity'
 import { AutomationActivationAuditEntity } from '../automation-architect/activation-audit.entity'
+import { AutomationRuntimeSupervisionEntity } from '../automation-architect/runtime-supervision.entity'
 import { OtpEntity } from '../authentication/otp/otp-entity'
 import { UserIdentityEntity } from '../authentication/user-identity/user-identity-entity'
 import { AgentConversationEntity } from '../ee/agent/agent-conversation-entity'
@@ -90,6 +91,7 @@ function getEntities(): EntitySchema<unknown>[] {
         AppConnectionEntity,
         AutomationActivationApprovalEntity,
         AutomationActivationAuditEntity,
+        AutomationRuntimeSupervisionEntity,
         VariableEntity,
         FolderEntity,
         PieceMetadataEntity,
