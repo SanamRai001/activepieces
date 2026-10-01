@@ -68,7 +68,7 @@ export function createAutomationDraftValidationService(dependencies: AutomationD
                 status: ready ? 'VALIDATED_DRAFT' : 'NEEDS_CONFIGURATION',
                 flowId: flow.id,
                 flowVersionId: flow.version.id,
-                flowVersionUpdatedAt: flow.version.updated,
+                flowVersionUpdatedAt: new Date(flow.version.updated).toISOString(),
                 structural,
             }
         },
