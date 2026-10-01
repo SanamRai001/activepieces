@@ -22,6 +22,7 @@ export type AutomationActivationApproval = {
     projectId: string
     flowId: string
     flowVersionId: string
+    flowVersionUpdatedAt: string | null
     approvedByUserId: string
     approvedAt: string
     simulationRunId: string | null
@@ -46,6 +47,10 @@ export const AutomationActivationApprovalEntity = new EntitySchema<AutomationAct
         flowVersionId: {
             ...ApIdSchema,
             nullable: false,
+        },
+        flowVersionUpdatedAt: {
+            type: 'timestamp with time zone',
+            nullable: true,
         },
         approvedByUserId: {
             ...ApIdSchema,
