@@ -190,7 +190,7 @@ export function evaluateActivationReadiness(
         params.approval.projectId !== params.projectId
         || params.approval.flowId !== params.flowId
         || params.approval.flowVersionId !== currentVersionId
-        || params.approval.flowVersionUpdatedAt !== currentVersionUpdatedAt
+        || !sameTimestamp(params.approval.flowVersionUpdatedAt, currentVersionUpdatedAt)
         || params.approval.policyDigest !== policyDigest
         || params.approval.riskDigest !== riskDigest
         || (
@@ -343,6 +343,20 @@ function canonicalJson(value: unknown): string {
             .join(',')}}`
     }
     return JSON.stringify(value)
+}
+
+function sameTimestamp(
+    left: string | null,
+    right: string,
+): boolean {
+    if (left === null) {
+        return false
+    }
+    const leftTimestamp = Date.parse(left)
+    const rightTimestamp = Date.parse(right)
+    return !Number.isNaN(leftTimestamp)
+        && !Number.isNaN(rightTimestamp)
+        && leftTimestamp === rightTimestamp
 }
 
 function uniqueRiskClasses(risks: AutomationActivationRiskSnapshot[]): AutomationRiskClass[] {
