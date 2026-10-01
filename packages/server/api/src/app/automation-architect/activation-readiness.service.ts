@@ -124,6 +124,7 @@ export function createActivationReadinessService(dependencies: ActivationReadine
             }
             if (
                 readiness.flowVersionId === undefined
+                || readiness.flowVersionUpdatedAt === undefined
                 || readiness.policySnapshot === undefined
                 || readiness.riskSnapshot === undefined
                 || readiness.policyDigest === undefined
@@ -143,6 +144,7 @@ export function createActivationReadinessService(dependencies: ActivationReadine
                 projectId: params.projectId,
                 flowId: params.flowId,
                 flowVersionId: readiness.flowVersionId,
+                flowVersionUpdatedAt: readiness.flowVersionUpdatedAt,
                 approvedByUserId: params.approvedByUserId,
                 approvedAt,
                 simulationRunId: params.simulationRunId ?? null,
@@ -184,6 +186,7 @@ export const activationReadinessService = (log: FastifyBaseLogger) => {
                 flowId: run.flowId,
                 projectId: run.projectId,
                 flowVersionId: run.flowVersionId,
+                createdAt: run.created,
                 environment: run.environment,
                 status: run.status,
             }
