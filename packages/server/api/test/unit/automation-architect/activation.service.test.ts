@@ -49,14 +49,12 @@ function published(status: FlowStatus = FlowStatus.DISABLED) {
 
 function setup(overrides: Partial<ExplicitActivationDependencies> = {}) {
     const audits: AutomationActivationAudit[] = []
-    let auditCounter = 0
     const dependencies: ExplicitActivationDependencies = {
         assess: async () => ready,
         checkActivationLimits: async () => undefined,
         publishExactDraft: async () => published(),
         enablePublishedFlow: async () => published(FlowStatus.ENABLED),
         saveAudit: async (record) => {
-            auditCounter += 1
             const saved: AutomationActivationAudit = {
                 ...record,
                 created: record.occurredAt,
