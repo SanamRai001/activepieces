@@ -327,6 +327,7 @@ export const flowService = (log: FastifyBaseLogger) => ({
         platformId,
         operation,
         previousFlow,
+        expectedPublishedDraft,
         ip,
         emitEvents = true,
     }: UpdateParams): Promise<PopulatedFlow> {
@@ -365,6 +366,7 @@ export const flowService = (log: FastifyBaseLogger) => ({
                     userId,
                     projectId,
                     platformId,
+                    expectedDraft: expectedPublishedDraft,
                 })
                 const isRepublish = !isNil(previouslyPublishedVersion) && flowPublishUtils.isSameTrigger({
                     published: previouslyPublishedVersion.trigger,
@@ -481,10 +483,12 @@ export const flowService = (log: FastifyBaseLogger) => ({
     }: UpdatePublishedVersionIdParams): Promise<PopulatedFlow> {
         const flowToUpdate = await this.getOneOrThrow({ id, projectId })
 
-        const flowVersionToPublish = await flowVersionService(log).getFlowVersionOrThrow({
-            flowId: id,
-            versionId: undefined,
-        })
+        const flowVersionToPublish = expectedDraft === undefined
+            ? await flowVersionService(log).getFlowVersionOrThrow({
+                flowId: id,
+                versionId: undefined,
+            })
+            : undefined
 
         if (flowToUpdate.status === FlowStatus.ENABLED && !isNil(flowToUpdate.publishedVersionId)) {
             await triggerSourceService(log).disable({
@@ -496,13 +500,24 @@ export const flowService = (log: FastifyBaseLogger) => ({
         }
 
         const publishedFlow = await transaction(async (entityManager) => {
+            const versionToPublish = expectedDraft === undefined
+                ? flowVersionToPublish!
+                : await getExpectedDraftForPublish({
+                    flowId: id,
+                    projectId,
+                    platformId,
+                    expectedDraft,
+                    entityManager,
+                    log,
+                })
+
             await flowPublishHooks.get(log).assertReferencesResolve({
                 projectId,
-                agentExternalIds: flowVersionToPublish.agentIds ?? [],
+                agentExternalIds: versionToPublish.agentIds ?? [],
                 entityManager,
             })
             const lockedFlowVersion = await lockFlowVersionIfNotLocked({
-                flowVersion: flowVersionToPublish,
+                flowVersion: versionToPublish,
                 userId,
                 projectId,
                 platformId,
@@ -738,6 +753,52 @@ export const flowService = (log: FastifyBaseLogger) => ({
 })
 
 
+const getExpectedDraftForPublish = async ({
+    flowId,
+    projectId,
+    platformId,
+    expectedDraft,
+    entityManager,
+    log,
+}: {
+    flowId: FlowId
+    projectId: ProjectId
+    platformId: PlatformId
+    expectedDraft: ExpectedPublishedDraft
+    entityManager: EntityManager
+    log: FastifyBaseLogger
+}): Promise<FlowVersion> => {
+    const current = await flowVersionRepo(entityManager)
+        .createQueryBuilder('flow_version')
+        .where('flow_version."flowId" = :flowId', { flowId })
+        .orderBy('flow_version.created', 'DESC')
+        .setLock('pessimistic_write')
+        .getOne()
+
+    if (isNil(current)) {
+        throw new Error('Expected draft no longer exists.')
+    }
+
+    const currentUpdated = new Date(current.updated).toISOString()
+    const expectedUpdated = new Date(expectedDraft.flowVersionUpdatedAt).toISOString()
+    if (
+        current.id !== expectedDraft.flowVersionId
+        || currentUpdated !== expectedUpdated
+        || current.state !== FlowVersionState.DRAFT
+    ) {
+        throw new Error('Draft changed after activation readiness was established.')
+    }
+
+    return flowVersionService(log).getFlowVersionOrThrow({
+        flowId,
+        versionId: current.id,
+        entityManager,
+        projectId,
+        platformId,
+    })
+}
+
+
 const lockFlowVersionIfNotLocked = async ({
     flowVersion,
     userId,
@@ -922,6 +983,7 @@ type UpdateParams = EventEmissionParams & {
     operation: FlowOperationRequest
     platformId: PlatformId
     previousFlow?: PopulatedFlow
+    expectedPublishedDraft?: ExpectedPublishedDraft
 }
 
 type UpdatePublishedVersionIdParams = {
@@ -929,6 +991,12 @@ type UpdatePublishedVersionIdParams = {
     userId: UserId | null
     platformId: PlatformId
     projectId: ProjectId
+    expectedDraft?: ExpectedPublishedDraft
+}
+
+type ExpectedPublishedDraft = {
+    flowVersionId: FlowVersionId
+    flowVersionUpdatedAt: string
 }
 
 type SetPublishedVersionParams = {
