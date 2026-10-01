@@ -57,6 +57,7 @@ function dependencies(overrides: Partial<AutomationDraftValidationDependencies> 
             publishedVersionId: null,
             version: {
                 id: 'version-1',
+                updated: updatedAt,
                 state: FlowVersionState.DRAFT,
                 trigger: trigger(action()),
             },
@@ -76,6 +77,7 @@ describe('Automation draft validation service', () => {
 
         expect(result.status).toBe('VALIDATED_DRAFT')
         expect(result.flowVersionId).toBe('version-1')
+        expect(result.flowVersionUpdatedAt).toBe(updatedAt)
         expect(result.structural?.issues).toEqual([])
     })
 
@@ -87,6 +89,7 @@ describe('Automation draft validation service', () => {
                 publishedVersionId: null,
                 version: {
                     id: 'version-1',
+                    updated: updatedAt,
                     state: FlowVersionState.DRAFT,
                     trigger: trigger(action(false)),
                 },
@@ -145,6 +148,7 @@ describe('Automation draft validation service', () => {
                 publishedVersionId,
                 version: {
                     id: 'version-1',
+                    updated: updatedAt,
                     state: versionState,
                     trigger: trigger(action()),
                 },
