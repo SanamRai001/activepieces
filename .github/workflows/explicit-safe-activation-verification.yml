@@ -62,3 +62,6 @@ jobs:
             test/unit/automation-architect/activation.service.test.ts \
             test/unit/automation-architect/draft-validation.service.test.ts \
             test/unit/automation-architect/draft-simulation.service.test.ts
+
+      - name: Check database migration/schema alignment
+        run: bunx turbo run check-migrations --filter=api
