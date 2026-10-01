@@ -290,7 +290,6 @@ describe('activation readiness evaluator', () => {
                 ...simulation,
                 runId: 'run_new__12345678901',
                 flowVersionId: newVersionId,
-                flowVersionUpdatedAt: versionUpdatedAt,
             },
             riskSnapshot: writeRisk,
             approval: previousApproval,
