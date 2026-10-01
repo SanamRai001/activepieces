@@ -13,7 +13,6 @@ import { flowService } from '../flows/flow/flow.service'
 import {
     type AutomationActivationAudit,
     AutomationActivationAuditEntity,
-    type AutomationActivationAuditEvent,
 } from './activation-audit.entity'
 import { AUTOMATION_ARCHITECT_ACTIVATION_POLICY } from './activation-policy'
 import {
@@ -139,7 +138,7 @@ export function createExplicitActivationService(
                 riskDigest: readiness.riskDigest,
             }
 
-            const attempt = await appendAudit(dependencies, {
+            await appendAudit(dependencies, {
                 ...evidence,
                 event: 'ATTEMPT_STARTED',
                 failureReason: null,
@@ -202,7 +201,7 @@ export function createExplicitActivationService(
                 readiness.flowVersionId,
             )
             if (publishInvariantFailure !== null) {
-                const event: AutomationActivationAuditEvent =
+                const event: 'FAILED_BEFORE_PUBLISH' | 'PUBLISHED_NOT_ENABLED' =
                     published.publishedVersionId === null
                         ? 'FAILED_BEFORE_PUBLISH'
                         : 'PUBLISHED_NOT_ENABLED'
