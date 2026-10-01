@@ -502,7 +502,13 @@ export const flowService = (log: FastifyBaseLogger) => ({
 
         const publishedFlow = await transaction(async (entityManager) => {
             const versionToPublish = expectedDraft === undefined
-                ? flowVersionToPublish!
+                ? await flowVersionService(log).getFlowVersionOrThrow({
+                    flowId: id,
+                    versionId: flowVersionToPublish?.id,
+                    entityManager,
+                    projectId,
+                    platformId,
+                })
                 : await getExpectedDraftForPublish({
                     flowId: id,
                     projectId,
