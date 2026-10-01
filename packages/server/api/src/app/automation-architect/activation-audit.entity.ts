@@ -1,3 +1,4 @@
+import type { Flow, FlowVersion, Project } from '@activepieces/shared'
 import { EntitySchema } from 'typeorm'
 import { ApIdSchema, BaseColumnSchemaPart } from '../database/database-common'
 
@@ -9,6 +10,10 @@ export type AutomationActivationAuditEvent =
     | 'PUBLISHED_NOT_ENABLED'
 
 export type AutomationActivationAudit = {
+    project: Project
+    flow: Flow
+    flowVersion: FlowVersion
+    approval?: import('./activation-approval.entity').AutomationActivationApproval | null
     id: string
     created: string
     updated: string
@@ -95,5 +100,43 @@ export const AutomationActivationAuditEntity = new EntitySchema<AutomationActiva
             columns: ['actorUserId', 'created'],
         },
     ],
-    relations: {},
+    relations: {
+        project: {
+            type: 'many-to-one',
+            target: 'project',
+            onDelete: 'CASCADE',
+            joinColumn: {
+                name: 'projectId',
+                foreignKeyConstraintName: 'fk_automation_activation_audit_project',
+            },
+        },
+        flow: {
+            type: 'many-to-one',
+            target: 'flow',
+            onDelete: 'CASCADE',
+            joinColumn: {
+                name: 'flowId',
+                foreignKeyConstraintName: 'fk_automation_activation_audit_flow',
+            },
+        },
+        flowVersion: {
+            type: 'many-to-one',
+            target: 'flow_version',
+            onDelete: 'CASCADE',
+            joinColumn: {
+                name: 'flowVersionId',
+                foreignKeyConstraintName: 'fk_automation_activation_audit_flow_version',
+            },
+        },
+        approval: {
+            type: 'many-to-one',
+            target: 'automation_activation_approval',
+            nullable: true,
+            onDelete: 'SET NULL',
+            joinColumn: {
+                name: 'approvalId',
+                foreignKeyConstraintName: 'fk_automation_activation_audit_approval',
+            },
+        },
+    },
 })
