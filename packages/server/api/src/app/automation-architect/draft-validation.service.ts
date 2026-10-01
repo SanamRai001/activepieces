@@ -17,6 +17,7 @@ export type AutomationDraftValidationResult = {
     status: AutomationDraftValidationStatus
     flowId: string
     flowVersionId?: string
+    flowVersionUpdatedAt?: string
     structural?: FlowStructureValidationResult
     reasons?: string[]
 }
@@ -27,6 +28,7 @@ type DraftFlowSnapshot = {
     publishedVersionId: string | null
     version: {
         id: string
+        updated: string
         state: FlowVersionState
         trigger: Step
     }
@@ -66,6 +68,7 @@ export function createAutomationDraftValidationService(dependencies: AutomationD
                 status: ready ? 'VALIDATED_DRAFT' : 'NEEDS_CONFIGURATION',
                 flowId: flow.id,
                 flowVersionId: flow.version.id,
+                flowVersionUpdatedAt: new Date(flow.version.updated).toISOString(),
                 structural,
             }
         },
@@ -90,6 +93,7 @@ export const automationDraftValidationService = (log: FastifyBaseLogger) => {
                 publishedVersionId: flow.publishedVersionId ?? null,
                 version: {
                     id: flow.version.id,
+                    updated: flow.version.updated,
                     state: flow.version.state,
                     trigger: flow.version.trigger,
                 },

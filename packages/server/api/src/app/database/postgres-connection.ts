@@ -446,6 +446,7 @@ import { FlowExternalIdUniqueIgnoresDeleting1855000000000 } from './migration/po
 import { AddFlowTombstoneIndex1856000000000 } from './migration/postgres/1856000000000-AddFlowTombstoneIndex'
 import { AddWaitpointDeadLetteredAt1857000000000 } from './migration/postgres/1857000000000-AddWaitpointDeadLetteredAt'
 import { AddAutomationActivationApproval1858000000000 } from './migration/postgres/1858000000000-AddAutomationActivationApproval'
+import { AddAutomationActivationAuditAndRevision1859000000000 } from './migration/postgres/1859000000000-AddAutomationActivationAuditAndRevision'
 
 const getSslConfig = (): boolean | TlsOptions => {
     const useSsl = system.get(AppSystemProp.POSTGRES_USE_SSL)
@@ -907,6 +908,7 @@ export const getMigrations = (): (new () => Migration)[] => {
         AddFlowTombstoneIndex1856000000000,
         AddWaitpointDeadLetteredAt1857000000000,
         AddAutomationActivationApproval1858000000000,
+        AddAutomationActivationAuditAndRevision1859000000000,
     ]
     return migrations
 }

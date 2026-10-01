@@ -21,6 +21,7 @@ import { setPlatformOAuthService } from './app-connection/app-connection-service
 import { appConnectionModule } from './app-connection/app-connection.module'
 import { platformAppConnectionModule } from './app-connection/platform-app-connection.module'
 import { authenticationModule } from './authentication/authentication.module'
+import { automationArchitectModule } from './automation-architect/automation-architect.module'
 import { otpModule } from './authentication/otp/otp-module'
 import { passwordlessAuthModule } from './authentication/passwordless-auth.module'
 import { canaryRoutingMiddleware } from './core/canary/canary-routing.middleware'
@@ -240,6 +241,7 @@ export const setupApp = async (app: FastifyInstance): Promise<FastifyInstance> =
     await app.register(pieceModule)
     await app.register(collaborativeModule)
     await app.register(flowModule)
+    await app.register(automationArchitectModule)
     await app.register(flowRunModule)
     await app.register(webhookModule)
     await app.register(appConnectionModule)

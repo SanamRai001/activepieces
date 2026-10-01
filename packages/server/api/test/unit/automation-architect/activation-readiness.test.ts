@@ -12,6 +12,8 @@ import type { AutomationDraftValidationResult } from '../../../src/app/automatio
 const flowId = 'flow_1234567890123456'
 const projectId = 'proj_1234567890123456'
 const versionId = 'vers_1234567890123456'
+const versionUpdatedAt = '2026-09-25T00:00:00.000Z'
+const simulationCreatedAt = '2026-09-25T00:01:00.000Z'
 const runId = 'run__1234567890123456'
 const userId = 'user_1234567890123456'
 
@@ -30,6 +32,7 @@ const validation: AutomationDraftValidationResult = {
     status: 'VALIDATED_DRAFT',
     flowId,
     flowVersionId: versionId,
+    flowVersionUpdatedAt: versionUpdatedAt,
 }
 
 const simulation = {
@@ -37,6 +40,7 @@ const simulation = {
     flowId,
     projectId,
     flowVersionId: versionId,
+    createdAt: simulationCreatedAt,
     environment: RunEnvironment.TESTING,
     status: FlowRunStatus.SUCCEEDED,
 }
@@ -242,6 +246,7 @@ describe('activation readiness evaluator', () => {
             projectId,
             flowId,
             flowVersionId: versionId,
+            flowVersionUpdatedAt: versionUpdatedAt,
             approvedByUserId: userId,
             approvedAt: new Date().toISOString(),
             simulationRunId: runId,
@@ -279,6 +284,7 @@ describe('activation readiness evaluator', () => {
                 status: 'VALIDATED_DRAFT',
                 flowId,
                 flowVersionId: newVersionId,
+                flowVersionUpdatedAt: versionUpdatedAt,
             },
             simulation: {
                 ...simulation,
@@ -332,6 +338,50 @@ describe('activation readiness evaluator', () => {
             approval,
         })
         expect(result.status).toBe('STALE_APPROVAL')
+    })
+
+    it('marks approval stale when the draft changes in place with the same version id', () => {
+        const approval = makeApproval(policy, writeRisk)
+        const changedUpdatedAt = '2026-09-25T00:02:00.000Z'
+        const result = evaluateActivationReadiness({
+            flowId,
+            projectId,
+            expectedFlowVersionId: versionId,
+            simulationRunId: runId,
+            policy,
+            validation: {
+                ...validation,
+                flowVersionUpdatedAt: changedUpdatedAt,
+            },
+            simulation: {
+                ...simulation,
+                createdAt: '2026-09-25T00:03:00.000Z',
+            },
+            riskSnapshot: writeRisk,
+            approval,
+        })
+        expect(result.status).toBe('STALE_APPROVAL')
+    })
+
+    it('rejects simulation evidence that predates the current draft revision', () => {
+        const result = evaluateActivationReadiness({
+            flowId,
+            projectId,
+            expectedFlowVersionId: versionId,
+            simulationRunId: runId,
+            policy,
+            validation: {
+                ...validation,
+                flowVersionUpdatedAt: '2026-09-25T00:05:00.000Z',
+            },
+            simulation: {
+                ...simulation,
+                createdAt: '2026-09-25T00:04:00.000Z',
+            },
+            riskSnapshot: readRisk,
+            approval: null,
+        })
+        expect(result.status).toBe('STALE_VALIDATION')
     })
 
     it('applies schema defaults to runtime activation policy', () => {
@@ -404,6 +454,7 @@ describe('activation readiness service', () => {
 
         expect(result.status).toBe('READY_TO_ACTIVATE')
         expect(stored?.flowVersionId).toBe(versionId)
+        expect(stored?.flowVersionUpdatedAt).toBe(versionUpdatedAt)
         expect(stored?.approvedByUserId).toBe(userId)
         expect(stored?.policyDigest).toHaveLength(64)
         expect(stored?.riskDigest).toHaveLength(64)
@@ -493,6 +544,7 @@ function makeApproval(
         projectId,
         flowId,
         flowVersionId: versionId,
+        flowVersionUpdatedAt: versionUpdatedAt,
         approvedByUserId: userId,
         approvedAt: new Date().toISOString(),
         simulationRunId: runId,

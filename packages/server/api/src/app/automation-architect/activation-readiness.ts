@@ -30,6 +30,7 @@ export type AutomationSimulationEvidence = {
     flowId: string
     projectId: string
     flowVersionId: string
+    createdAt: string
     environment: RunEnvironment
     status: FlowRunStatus
 }
@@ -38,6 +39,7 @@ export type AutomationActivationReadinessResult = {
     status: AutomationActivationReadinessStatus
     flowId: string
     flowVersionId?: string
+    flowVersionUpdatedAt?: string
     simulationRunId?: string
     approvalId?: string
     reasons?: string[]
@@ -90,12 +92,18 @@ export function evaluateActivationReadiness(
     }
 
     const currentVersionId = params.validation.flowVersionId
-    if (currentVersionId === undefined || currentVersionId !== params.expectedFlowVersionId) {
+    const currentVersionUpdatedAt = params.validation.flowVersionUpdatedAt
+    if (
+        currentVersionId === undefined
+        || currentVersionUpdatedAt === undefined
+        || currentVersionId !== params.expectedFlowVersionId
+    ) {
         return {
             status: 'STALE_VALIDATION',
             flowId: params.flowId,
             flowVersionId: currentVersionId,
-            reasons: ['The validated draft version no longer matches the version being considered for activation.'],
+            flowVersionUpdatedAt: currentVersionUpdatedAt,
+            reasons: ['The validated draft version/revision no longer matches the version being considered for activation.'],
         }
     }
 
@@ -113,6 +121,7 @@ export function evaluateActivationReadiness(
             flowId: params.flowId,
             projectId: params.projectId,
             flowVersionId: currentVersionId,
+            flowVersionUpdatedAt: currentVersionUpdatedAt,
             expectedRunId: params.simulationRunId,
         })
         if (simulationIssue !== null) {
@@ -120,6 +129,7 @@ export function evaluateActivationReadiness(
                 status: simulationIssue.stale ? 'STALE_VALIDATION' : 'SIMULATION_FAILED',
                 flowId: params.flowId,
                 flowVersionId: currentVersionId,
+                flowVersionUpdatedAt: currentVersionUpdatedAt,
                 simulationRunId: params.simulationRunId,
                 reasons: [simulationIssue.message],
             }
@@ -138,6 +148,7 @@ export function evaluateActivationReadiness(
             status: 'DENIED',
             flowId: params.flowId,
             flowVersionId: currentVersionId,
+            flowVersionUpdatedAt: currentVersionUpdatedAt,
             simulationRunId: params.simulationRunId,
             reasons: [`Activation policy denies risk classes: ${deniedRisks.join(', ')}.`],
         }
@@ -152,6 +163,7 @@ export function evaluateActivationReadiness(
     const common = {
         flowId: params.flowId,
         flowVersionId: currentVersionId,
+        flowVersionUpdatedAt: currentVersionUpdatedAt,
         simulationRunId: params.simulationRunId,
         policySnapshot,
         riskSnapshot: normalizedRisks,
@@ -178,6 +190,7 @@ export function evaluateActivationReadiness(
         params.approval.projectId !== params.projectId
         || params.approval.flowId !== params.flowId
         || params.approval.flowVersionId !== currentVersionId
+        || !sameTimestamp(params.approval.flowVersionUpdatedAt, currentVersionUpdatedAt)
         || params.approval.policyDigest !== policyDigest
         || params.approval.riskDigest !== riskDigest
         || (
@@ -233,6 +246,7 @@ function validateSimulationEvidence(params: {
     flowId: string
     projectId: string
     flowVersionId: string
+    flowVersionUpdatedAt: string
     expectedRunId: string
 }): { message: string, stale: boolean } | null {
     if (
@@ -248,6 +262,18 @@ function validateSimulationEvidence(params: {
     if (params.evidence.flowVersionId !== params.flowVersionId) {
         return {
             message: 'Simulation evidence belongs to a different flow version.',
+            stale: true,
+        }
+    }
+    const evidenceCreated = Date.parse(params.evidence.createdAt)
+    const draftUpdated = Date.parse(params.flowVersionUpdatedAt)
+    if (
+        Number.isNaN(evidenceCreated)
+        || Number.isNaN(draftUpdated)
+        || evidenceCreated < draftUpdated
+    ) {
+        return {
+            message: 'Simulation evidence predates the current draft revision.',
             stale: true,
         }
     }
@@ -317,6 +343,20 @@ function canonicalJson(value: unknown): string {
             .join(',')}}`
     }
     return JSON.stringify(value)
+}
+
+function sameTimestamp(
+    left: string | null,
+    right: string,
+): boolean {
+    if (left === null) {
+        return false
+    }
+    const leftTimestamp = Date.parse(left)
+    const rightTimestamp = Date.parse(right)
+    return !Number.isNaN(leftTimestamp)
+        && !Number.isNaN(rightTimestamp)
+        && leftTimestamp === rightTimestamp
 }
 
 function uniqueRiskClasses(risks: AutomationActivationRiskSnapshot[]): AutomationRiskClass[] {

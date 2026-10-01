@@ -1,46 +1,41 @@
-import type { AutomationPolicy, AutomationRiskClass } from '@activepieces/automation-architect'
 import type { Flow, FlowVersion, Project } from '@activepieces/shared'
 import { EntitySchema } from 'typeorm'
 import { ApIdSchema, BaseColumnSchemaPart } from '../database/database-common'
 
-export type AutomationActivationRiskSnapshot = {
-    stepName: string
-    pieceName: string
-    actionName: string
-    riskClass: AutomationRiskClass
-    rationale: string
-}
+export type AutomationActivationAuditEvent =
+    | 'ATTEMPT_STARTED'
+    | 'PUBLISHED'
+    | 'ACTIVATED'
+    | 'FAILED_BEFORE_PUBLISH'
+    | 'PUBLISHED_NOT_ENABLED'
 
-export type AutomationActivationPolicySnapshot = {
-    riskPolicy: AutomationPolicy
-    requireSuccessfulSimulation: boolean
-}
-
-export type AutomationActivationApproval = {
+export type AutomationActivationAudit = {
     id: string
     created: string
     updated: string
     projectId: string
     flowId: string
     flowVersionId: string
-    flowVersionUpdatedAt: string | null
-    approvedByUserId: string
-    approvedAt: string
+    flowVersionUpdatedAt: string
+    actorUserId: string
+    approvalId: string | null
     simulationRunId: string | null
-    policySnapshot: AutomationActivationPolicySnapshot
-    riskSnapshot: AutomationActivationRiskSnapshot[]
     policyDigest: string
     riskDigest: string
+    event: AutomationActivationAuditEvent
+    occurredAt: string
+    failureReason: string | null
 }
 
-type AutomationActivationApprovalSchema = AutomationActivationApproval & {
+type AutomationActivationAuditSchema = AutomationActivationAudit & {
     project: Project
     flow: Flow
     flowVersion: FlowVersion
+    approval?: import('./activation-approval.entity').AutomationActivationApproval | null
 }
 
-export const AutomationActivationApprovalEntity = new EntitySchema<AutomationActivationApprovalSchema>({
-    name: 'automation_activation_approval',
+export const AutomationActivationAuditEntity = new EntitySchema<AutomationActivationAuditSchema>({
+    name: 'automation_activation_audit',
     columns: {
         ...BaseColumnSchemaPart,
         projectId: {
@@ -57,27 +52,19 @@ export const AutomationActivationApprovalEntity = new EntitySchema<AutomationAct
         },
         flowVersionUpdatedAt: {
             type: 'timestamp with time zone',
-            nullable: true,
+            nullable: false,
         },
-        approvedByUserId: {
+        actorUserId: {
             ...ApIdSchema,
             nullable: false,
         },
-        approvedAt: {
-            type: 'timestamp with time zone',
-            nullable: false,
+        approvalId: {
+            ...ApIdSchema,
+            nullable: true,
         },
         simulationRunId: {
             ...ApIdSchema,
             nullable: true,
-        },
-        policySnapshot: {
-            type: 'jsonb',
-            nullable: false,
-        },
-        riskSnapshot: {
-            type: 'jsonb',
-            nullable: false,
         },
         policyDigest: {
             type: String,
@@ -89,19 +76,31 @@ export const AutomationActivationApprovalEntity = new EntitySchema<AutomationAct
             length: 64,
             nullable: false,
         },
+        event: {
+            type: String,
+            nullable: false,
+        },
+        occurredAt: {
+            type: 'timestamp with time zone',
+            nullable: false,
+        },
+        failureReason: {
+            type: String,
+            nullable: true,
+        },
     },
     indices: [
         {
-            name: 'idx_automation_activation_approval_flow',
+            name: 'idx_automation_activation_audit_flow',
             columns: ['projectId', 'flowId', 'created'],
         },
         {
-            name: 'idx_automation_activation_approval_flow_version',
+            name: 'idx_automation_activation_audit_version',
             columns: ['projectId', 'flowId', 'flowVersionId', 'created'],
         },
         {
-            name: 'idx_automation_activation_approval_user',
-            columns: ['approvedByUserId', 'created'],
+            name: 'idx_automation_activation_audit_actor',
+            columns: ['actorUserId', 'created'],
         },
     ],
     relations: {
@@ -111,7 +110,7 @@ export const AutomationActivationApprovalEntity = new EntitySchema<AutomationAct
             onDelete: 'CASCADE',
             joinColumn: {
                 name: 'projectId',
-                foreignKeyConstraintName: 'fk_automation_activation_approval_project',
+                foreignKeyConstraintName: 'fk_automation_activation_audit_project',
             },
         },
         flow: {
@@ -120,7 +119,7 @@ export const AutomationActivationApprovalEntity = new EntitySchema<AutomationAct
             onDelete: 'CASCADE',
             joinColumn: {
                 name: 'flowId',
-                foreignKeyConstraintName: 'fk_automation_activation_approval_flow',
+                foreignKeyConstraintName: 'fk_automation_activation_audit_flow',
             },
         },
         flowVersion: {
@@ -129,7 +128,17 @@ export const AutomationActivationApprovalEntity = new EntitySchema<AutomationAct
             onDelete: 'CASCADE',
             joinColumn: {
                 name: 'flowVersionId',
-                foreignKeyConstraintName: 'fk_automation_activation_approval_flow_version',
+                foreignKeyConstraintName: 'fk_automation_activation_audit_flow_version',
+            },
+        },
+        approval: {
+            type: 'many-to-one',
+            target: 'automation_activation_approval',
+            nullable: true,
+            onDelete: 'SET NULL',
+            joinColumn: {
+                name: 'approvalId',
+                foreignKeyConstraintName: 'fk_automation_activation_audit_approval',
             },
         },
     },
