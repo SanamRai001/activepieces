@@ -17,9 +17,6 @@ export type AutomationActivationPolicySnapshot = {
 }
 
 export type AutomationActivationApproval = {
-    project: Project
-    flow: Flow
-    flowVersion: FlowVersion
     id: string
     created: string
     updated: string
@@ -36,7 +33,13 @@ export type AutomationActivationApproval = {
     riskDigest: string
 }
 
-export const AutomationActivationApprovalEntity = new EntitySchema<AutomationActivationApproval>({
+type AutomationActivationApprovalSchema = AutomationActivationApproval & {
+    project: Project
+    flow: Flow
+    flowVersion: FlowVersion
+}
+
+export const AutomationActivationApprovalEntity = new EntitySchema<AutomationActivationApprovalSchema>({
     name: 'automation_activation_approval',
     columns: {
         ...BaseColumnSchemaPart,
